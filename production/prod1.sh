@@ -4,7 +4,7 @@
 #SBATCH --job-name=prod1
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=128
-#SBATCH --mem=30G
+#SBATCH --mem=24G
 #SBATCH --account=project_2006125
 #SBATCH --partition=medium
 
