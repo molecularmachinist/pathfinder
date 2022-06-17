@@ -1,10 +1,10 @@
 #!/bin/bash 
 #SBATCH --output=prod_2.txt
-#SBATCH --time=00:15:00
+#SBATCH --time=00:30:00
 #SBATCH --job-name=prod2
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=128
-#SBATCH --mem=30G
+#SBATCH --mem=24G
 #SBATCH --account=project_2006125
 #SBATCH --partition=medium
 
