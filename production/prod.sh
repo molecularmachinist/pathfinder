@@ -1,7 +1,7 @@
 #!/bin/bash 
-#SBATCH --output=prod.txt
+#SBATCH --output=prod_%a.txt
 #SBATCH --time=00:30:00
-#SBATCH --job-name=production
+#SBATCH --job-name=prod%a
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=128
 #SBATCH --mem=30G
@@ -23,11 +23,13 @@ prod_prefix=step7_production
 if ($n == 1) then
     pstep=step6.6_equilibration
     srun gmx_mpi grompp -f ${prod_prefix}.mdp -o ${istep}.tpr -c ${pstep}.gro -p topol.top -n index.ndx
+    srun gmx_mpi mdrun -v -deffnm istep
 else
-    srun gmx_mpi grompp -f ${prod_prefix}.mdp -o ${istep}.tpr -c ${pstep}.gro -t ${pstep}.cpt -p topol.top -n index.ndx
+    srun --dependency=afterok:${jid}_${n} gmx_mpi grompp -f ${prod_prefix}.mdp -o ${istep}.tpr -c ${pstep}.gro -t ${pstep}.cpt -p topol.top -n index.ndx
+    srun --dependency=afterok:${jid}_${n} gmx_mpi mdrun -v -deffnm istep
 fi
 
-srun gmx_mpi mdrun -v -deffnm istep
+
 
 #jid1=$(sbatch prod1.sh | awk '{print $4}')
 #jid2=$(sbatch --dependency=afterok:$jid1 prod2.sh | awk '{print $4}')
