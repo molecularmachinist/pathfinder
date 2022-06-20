@@ -1,0 +1,19 @@
+#!/bin/bash 
+#SBATCH --output=step7.txt
+#SBATCH --time=02:00:00
+#SBATCH --job-name=step7
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=64
+#SBATCH --mem=40G
+#SBATCH --account=project_2006125
+#SBATCH --partition=medium
+
+module load gromacs
+
+istep=step7_1
+pstep=step6.6_equilibration
+rest_prefix=step5_input
+prod_prefix=step7_production
+
+srun gmx_mpi grompp -f ${prod_prefix}.mdp -o ${istep}.tpr -c ${pstep}.gro -p topol.top -n index.ndx
+srun gmx_mpi mdrun -v -deffnm ${istep}
