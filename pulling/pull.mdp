@@ -1,73 +1,61 @@
 title		= Pull code for pathfinder
-define		= POSRES
 
 ; Run parameters
 integrator	= md
-dt		= 0.002
-tinit		= 0
-nsteps		= 	; ??? ps
-nstcomm	=
+dt		= 0.004
+nsteps		= 12500000 	; 50 ns = 50000 ps
 
 ; Output parameters
-nstxout	=
-nstvout	=
-nstfout	=
-nstxtcout	=
-nstenergy	=
+nstxout-compressed	 = 25000
+nstcalcenergy           = 100
+nstenergy               = 1000
+nstlog                  = 1000
 
 ; Bond parameters
-constraint_algorithm    = 
-constraints             = 
-continuation            = 
+constraint_algorithm    = lincs
+constraints             = all-bonds
+continuation            = no
 
-; Single-range cutoff scheme
-cutoff-scheme   = 
-nstlist         =
-ns_type         =  
-rlist           = 
-rcoulomb        = 
-rvdw            = 
+;Cutoff scheme
+cutoff-scheme           = Verlet
+nstlist                 = 20
+rlist                   = 1.2
+vdwtype                 = Cut-off
+vdw-modifier            = Force-switch
+rvdw_switch             = 1.0
+rvdw                    = 1.2
+coulombtype             = PME
+rcoulomb                = 1.2
 
-; PME electrostatics parameters
-coulombtype     = PME
-fourierspacing  = 0.12
-fourier_nx      = 0
-fourier_ny      = 0
-fourier_nz      = 0
-pme_order       = 4
-ewald_rtol      = 1e-5
-optimize_fft    = yes
+; Temperature coupling 
+tcoupl                  = Nose-Hoover
+tc_grps                 = SOLU MEMB SOLV
+tau_t                   = 1.0 1.0 1.0
+ref_t                   = 310.15 310.15 310.15
 
-; Berendsen temperature coupling is on in two groups
-Tcoupl      = Nose-Hoover
-tc_grps     = Protein   Protein 
-tau_t       = 1.0       1.0
-ref_t       = 310       310
+; Pressure coupling 
+pcoupl                  = Parrinello-Rahman
+pcoupltype              = semiisotropic
+tau_p                   = 5.0
+compressibility         = 4.5e-5  4.5e-5
+ref_p                   = 1.0     1.0
 
-; Pressure coupling is on
-Pcoupl          = Parrinello-Rahman 
-pcoupltype      = isotropic
-tau_p           = 1.0       
-compressibility = 4.5e-5
-ref_p           = 1.0
-refcoord_scaling = com
+nstcomm                 = 100
+comm_mode               = linear
+comm_grps               = SOLU_MEMB SOLV
 
-; Generate velocities is off
-gen_vel     = no 
+; Generate velocities is on
+gen_vel		= yes
+gen_seed		= -1	
 
-; Periodic boundary conditions are on in all directions
-pbc     = xyz
-
-; Long-range dispersion correction
-DispCorr    = EnerPres
 
 ; Pull code
 pull                    = yes
 pull_ncoords            = 1          
 pull_ngroups            = 2 
          
-pull_group1_name        = Chain_A 
-pull_group2_name        = Chain_B 
+pull_group1_name        = Helix1 
+pull_group2_name        = Helix2 
 
 pull_coord1_type        = umbrella  
 pull_coord1_geometry    = distance  
@@ -75,5 +63,5 @@ pull_coord1_dim         = Y Y N
 pull_coord1_groups      = 1 2
 
 pull_coord1_start       = yes       
-pull_coord1_rate        = 0.01      ; 0.01 nm per ps = 10 nm per ns
-pull_coord1_k           = 100       ; kJ mol^-1 nm^-2
+pull_coord1_rate        = 0.0004   ; 0.0004 nm per ps = 0.04 nm per ns
+pull_coord1_k           = 50       ; kJ mol^-1 nm^-2
