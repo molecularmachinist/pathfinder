@@ -42,7 +42,7 @@ ref_p                   = 1.0     1.0
 
 nstcomm                 = 100
 comm_mode               = linear
-comm_grps               = SOLU_MEMB SOLV
+;comm_grps               = SOLU_MEMB SOLV
 
 ; Generate velocities is on
 gen_vel		= yes
@@ -61,6 +61,8 @@ pull_coord1_type        = umbrella
 pull_coord1_geometry    = distance  
 pull_coord1_dim         = Y Y N
 pull_coord1_groups      = 1 2
+pull_group1_pbcatom 	 = 0
+pull_group2_pbcatom 	 = 0
 
 pull_coord1_start       = yes       
 pull_coord1_rate        = 0.0004   ; 0.0004 nm per ps = 0.04 nm per ns
