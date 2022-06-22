@@ -53,7 +53,6 @@ gen_seed		= -1
 pull                    = yes
 pull_ncoords            = 1          
 pull_ngroups            = 2
-pull-nstxout		 = 1000 
          
 pull_group1_name        = Helix1 
 pull_group2_name        = Helix2 
