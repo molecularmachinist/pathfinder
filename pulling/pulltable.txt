@@ -1,0 +1,6 @@
+Pulling simulation data
+
+	K (kJ mol^-1 nm^-2)	Successful?	dt (ns)(for 1nm)	Force peak (kJ/mol/nm)
+		50		   yes		      17.5			 300
+		5
+		25
