@@ -1,0 +1,21 @@
+1. Set up pulling sim in cluster and run
+    1.1 Set up pull.sh
+        1.1.1 In pull.sh, change K in:
+                -output 
+                -jobname 
+                -in mdrun, tpr file name and both xvg file names
+        1.1.2 In pull.mdp, change K
+        1.1.3 Load gromacs module and run grompp
+    1.2 sbatch pull.sh
+    1.3 Check that the sim is running
+2. Check results
+    2.1 Check if finished
+    2.2 Check if pulling was successful
+        2.2.1 Check log and txt files
+    2.3 Check pulling speed and max force
+    2.4 Visualize trajectory in vmd
+3. Run new simulation
+    3.1 Choose new K
+    3.2 Repeat step 1
+4. Repeat 2 & 3 until optimal value found
+    -Optimal K means K-5 not successful but K is successful
