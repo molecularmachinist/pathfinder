@@ -6,7 +6,7 @@ dt		= 0.004
 nsteps		= 250000 	; 1 ns
 
 ; Output parameters
-nstxout-compressed	 = 25000
+nstxout-compressed	 = 2500
 nstcalcenergy           = 100
 nstenergy               = 1000
 nstlog                  = 1000
@@ -59,12 +59,13 @@ pull_group2_name        = TK2
 
 pull_coord1_type        = umbrella  
 pull_coord1_geometry    = distance  
-pull_coord1_dim         = Y Y N
+pull_coord1_dim         = Y N N
 pull_coord1_groups      = 1 2
-pull_group1_pbcatom 	 = 0
-pull_group2_pbcatom 	 = 0
+pull_group1_pbcatom 	 = 3583
+pull_group2_pbcatom 	 = 9327
+pull-pbc-ref-prev-step-com = yes
 
-pull_coord1_init	= 2.2	    ; nm
+pull_coord1_init	= 4.8	    ; nm
 pull_coord1_start       = no       
-pull_coord1_rate        = 0.002   ; 0.002 nm per ps = 0.2 nm per ns
+pull_coord1_rate        = 0   ; 0.002 nm per ps = 0.2 nm per ns
 pull_coord1_k           = 100       ; kJ mol^-1 nm^-2
