@@ -59,7 +59,7 @@ pull_group2_name        = TK2
 
 pull_coord1_type        = umbrella  
 pull_coord1_geometry    = distance  
-pull_coord1_dim         = Y N N
+pull_coord1_dim         = N Y N
 pull_coord1_groups      = 1 2
 pull_group1_pbcatom 	 = 3583
 pull_group2_pbcatom 	 = 9327
