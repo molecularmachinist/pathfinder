@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#User submits:
+#User submits (example):
 #sbatch pull_script.sh 5 50
 
 #Take K_min and K_max as variables from user input
@@ -70,6 +70,12 @@ check_if_done () {
     fi
 }
 
+#Function for running equilibrations
+run_eq () {
+
+}
+
+
 #call run for 3 K values:
     #run_pull 0 $K_min
     #run_pull 1 $K_mid
@@ -86,31 +92,42 @@ check_if_done () {
     #status 1 $K_mid
 #check if done
 
-run_pull 0 $K_min
-run_pull 1 $K_mid
-run_pull 2 $K_max
+#For 10nm pulling, we need 9 different Ks (1nm -> 2nm, 2nm -> 3nm, etc.)
+#So some kind of a loop here, where first pull sims and finding K, and then equilibration
+#after every 1nm of pulling
 
-status 0 $K_min      
-status 1 $K_mid
-status 2 $K_max
-
-func_result=$(check_if_done)
-
-new_K
-
-while [[ $func_result==0 ]]
+for ((i=0; i<=8; i++))
 do
+    run_pull 0 $K_min
     run_pull 1 $K_mid
+    run_pull 2 $K_max
+
+    status 0 $K_min      
     status 1 $K_mid
+    status 2 $K_max
+
     func_result=$(check_if_done)
-    if [[ $func_result==1 ]]
-    then
-        local final_text="The optimal force constant has been found"
-        echo "$final_text"
-        force_constant=$K_mid
-        echo "K=$force_constant"
-        done
-    else
-        new_K                                   #continue searching
-    fi
+
+    new_K
+
+    while [[ $func_result==0 ]]
+    do
+        run_pull 1 $K_mid
+        status 1 $K_mid
+        func_result=$(check_if_done)
+        if [[ $func_result==1 ]]
+        then
+            local final_text="The optimal force constant has been found"
+            echo "$final_text"
+            force_constant=$K_mid
+            echo "K=$force_constant"
+            done
+        else
+            new_K                                   #continue searching
+        fi
+    done
+    
+    #The best K is now found
+    #Now time to equilibrate and then repeat pull for 2nm -> 3nm etc.
+
 done
