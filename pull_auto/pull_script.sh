@@ -10,13 +10,16 @@ K_mid=$((($K_max - $K_min)/2))
 K_mid=$(( (($K_mid+2)/5)*5 ))
 K_Array=($K_min $K_mid $K_max)
 PIDs=()                             
-status_arr=(0 0 0)              
+status_arr=(0 0 0)
+target_distance=                           #previous distance + 1nm
 
-#Function for setting up the pull sim and running it
+
+#Function for setting up the pull sim (helices) and running it
 #Takes index and K as input
 run_pull () {
-    sed -i '$ d' pull.mdp                        #remove pull_coord1_k line from mdp file
+    sed -i '$d' pull.mdp                        #remove pull_coord1_k line from mdp file
     echo "pull_coord1_k = $2" >> cd /scratch/project_2006125/vanilja/pull.mdp                                       #set K in mdp
+    echo "pull_coord1_init = ???" >> cd /scratch/project_2006125/vanilja/pull.mdp                                   #set init distance in mdp
     gmx_mpi grompp -f pull.mdp -c step7.gro -p topol.top -r step7.gro -n index.ndx -o pull$2.tpr -maxwarn 1         #grompp
     sbatch --output=pull$2.txt --job-name=pull$2 --export=K=$2 pull.sh                                              #run 
     $PIDs[$1]=$!                                                                                                    #save process ID                      
@@ -71,8 +74,25 @@ check_if_done () {
 }
 
 #Function for running equilibrations
+#Equilibrations require 2 coordinates, one flat bottom and one flat bottom high
+#Function needs to insert a range (+-0.25nm) into pull coord init parameters
+#K is large value 1000 
 run_eq () {
+    range_high=$(($target_distance + 0.25))
+    range_low=$(($target_distance - 0.25))
+    echo "pull_coord1_init = $range_high" >> cd /scratch/project_2006125/vanilja/pull_eq.mdp
+    echo "pull_coord2_init = $range_low" >> cd /scratch/project_2006125/vanilja/pull_eq.mdp
+    gmx_mpi grompp -f pull_eq.mdp -o pull_eq.tpr -c pull20_2.2nm.gro -r pull20_2.2nm.gro -p topol.top -n index.ndx -maxwarn 1
+    sbatch pull.sh
+    $PIDs[$1]=$!
+    echo "Equilibration running with range $range_low-$range_high"
 
+    wait $PID[$1]                                               
+
+    #check if equilibration was successful
+        #check avg force, potential, temp, pressure, volume etc
+    #what to do if not successful?
+        #run again?
 }
 
 
@@ -96,6 +116,12 @@ run_eq () {
 #So some kind of a loop here, where first pull sims and finding K, and then equilibration
 #after every 1nm of pulling
 
+#(Not sure if this is necessary, because this tool should be universal)
+#First we need to pull the TK domains 5Å apart (every atom is 5Å apart) 
+#Which is x-direction distance 4.9nm
+#Determining  the K is the same for TK domains as TM domains
+
+
 for ((i=0; i<=8; i++))
 do
     run_pull 0 $K_min
@@ -110,7 +136,7 @@ do
 
     new_K
 
-    while [[ $func_result==0 ]]
+    while [[ $func_result==0 ]]         #while K isn't found yet
     do
         run_pull 1 $K_mid
         status 1 $K_mid
@@ -129,5 +155,7 @@ do
     
     #The best K is now found
     #Now time to equilibrate and then repeat pull for 2nm -> 3nm etc.
+
+    run_eq
 
 done
