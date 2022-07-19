@@ -12,7 +12,8 @@ K_mid=$(( (($K_mid+2)/5)*5 ))
 K_Array=($K_min $K_mid $K_max)
 PIDs=()                             
 status_arr=(0 0 0)
-target_distance=???                           #previous distance + 1nm
+pbc_TK1=3402
+pbc_TK2=9086
 
 
 #Function for setting up the pull sim (helices) and running it
@@ -22,6 +23,10 @@ target_distance=???                           #previous distance + 1nm
 run_pull () {
     sed -i '$d' pull.mdp                        #remove pull_coord1_k line from mdp file
     echo "pull_coord1_k = $2" >> cd /scratch/project_2006125/vanilja/pull.mdp                                       #set K in mdp
+    gmx_mpi distance -f pull_eq_TK.gro -s pull_eq_TK.gro -n index.ndx -oav distance.xvg -select 'com of group "Helix1" plus com of group "Helix2"'
+    get_line=$(sed '25q;d' distance.xvg)
+    start=${get_line: -5}
+    init=$("$start + 0.6" | bc -l)
     echo "pull_coord1_init = ???" >> cd /scratch/project_2006125/vanilja/pull.mdp                                   #set init distance in mdp
     gmx_mpi grompp -f pull.mdp -c step7.gro -p topol.top -r step7.gro -n index.ndx -o pull$2.tpr -maxwarn 1         #grompp
     sbatch --output=pull$2.txt --job-name=pull$2 --export=K=$2 pull.sh                                              #run 
@@ -36,7 +41,11 @@ run_pull () {
 run_pull_TK () {
     sed -i '$d' pull_TK.mdp
     echo "pull_coord1_k = $2" >> cd /scratch/project_2006125/vanilja/pull_TK.mdp                                       #set K in mdp
-    echo "pull_coord1_init = ???" >> cd /scratch/project_2006125/vanilja/pull_TK.mdp
+    gmx_mpi distance -f step7.gro -s step7.gro -n index.ndx -oav distance.xvg -select 'com of group "TK1" plus com of group "TK2"'
+    get_line=$(sed '25q;d' distance.xvg)
+    start=${get_line: -5}
+    init=$("$start + 0.6" | bc -l)
+    echo "pull_coord1_init = $init" >> cd /scratch/project_2006125/vanilja/pull_TK.mdp
     gmx_mpi grompp -f pull_TK.mdp -c step7.gro -p topol.top -r step7.gro -n index_TK.ndx -o pull_TK.tpr -maxwarn 1
     sbatch --output=pull_TK$2.txt --job-name=pull_TK$2 --export=K=$2 pull_TK.sh
     $PIDs[$1]=$!
@@ -46,11 +55,11 @@ run_pull_TK () {
 #Function for determining fail/success for K
 #Takes index and K as input
 status () {
-    wait $PID[$1]                                   #wait for sbatch to finish
+    wait $PIDs[$1]                                   #wait for sbatch to finish
     get_line=$(sed '18q;d' pull$2x.xvg)             #get first distance (18th line of xvg file)
     first=${get_line: -7}                           
     last=`tail -n 1 pull$2x.xvg | awk '{print $2}'` #get last distance
-    dx=(expr $last - $first)                        #difference in x
+    dx=$(( $last - $first ))                        #difference in x
     if [[ $dx>1 ]]                                  #if distance between the domains is > 1
     then
         $status_arr[$1]=1                           #1 = successful
@@ -95,25 +104,25 @@ check_if_done () {
 #Equilibrations require 2 coordinates, one flat bottom and one flat bottom high
 #Function needs to insert a range (+-0.25nm) into pull coord init parameters
 #K is large value 1000 
+#$1 = name of mdp file as input to determine whether equilibrating TK or TM domains
+#$2 = name of gro file to use
 run_eq () {
     range_high=$(($target_distance + 0.25))
     range_low=$(($target_distance - 0.25))
-    echo "pull_coord1_init = $range_high" >> cd /scratch/project_2006125/vanilja/pull_eq.mdp
-    echo "pull_coord2_init = $range_low" >> cd /scratch/project_2006125/vanilja/pull_eq.mdp
-    gmx_mpi grompp -f pull_eq.mdp -o pull_eq.tpr -c ??? -r ??? -p topol.top -n index.ndx -maxwarn 1
-    sbatch pull_eq.sh
-    $PIDs[$1]=$!
-    echo "Equilibration running with range $range_low-$range_high"
+    echo "pull_coord1_init = $range_high" >> cd /scratch/project_2006125/vanilja/pull_$1.mdp
+    echo "pull_coord2_init = $range_low" >> cd /scratch/project_2006125/vanilja/pull_$1.mdp
+    gmx_mpi grompp -f pull_$1.mdp -o pull_$1.tpr -c $2 -r $2 -p topol.top -n index.ndx -maxwarn 1
+    sbatch --output=pull_$1.txt --job-name=pull_$1 pull_eq.sh
+    $PIDs[0]=$!
+    echo "Running pull_$1 with range: $range_low-$range_high"
 
-    wait $PID[$1]                                               
+    wait $PIDs[0]                                               
 
     #check if equilibration was successful
         #check avg force, potential, temp, pressure, volume etc
     #what to do if not successful?
         #run again?
 }
-
-
 
 #For 10nm pulling, we need 9 different Ks (1nm -> 2nm, 2nm -> 3nm, etc.)
 #So some kind of a loop here, where first pull sims and finding K, and then equilibration
@@ -160,7 +169,12 @@ do
     #The best K for TK pulling is now found
     #Continue with equilibration
 
-    run_eq_TK
+    run_eq eq_TK
+
+    K_min=$1
+    K_max=$2
+    K_mid=$((($K_max - $K_min)/2))
+    K_mid=$(( (($K_mid+2)/5)*5 ))
 
     run_pull 0 $K_min
     run_pull 1 $K_mid
@@ -194,6 +208,6 @@ do
     #The best K for TM pulling is now found
     #Now time to equilibrate and then repeat the steps above
 
-    run_eq
+    run_eq eq
 
 done
