@@ -4,6 +4,7 @@
 #sbatch pull_script.sh 5 50
 
 #Take K_min and K_max as variables from user input
+#or use some default values for example 5 and 1000
 K_min=$1
 K_max=$2
 K_mid=$((($K_max - $K_min)/2))
@@ -11,11 +12,13 @@ K_mid=$(( (($K_mid+2)/5)*5 ))
 K_Array=($K_min $K_mid $K_max)
 PIDs=()                             
 status_arr=(0 0 0)
-target_distance=                           #previous distance + 1nm
+target_distance=???                           #previous distance + 1nm
 
 
 #Function for setting up the pull sim (helices) and running it
 #Takes index and K as input
+#$1=index
+#$2=K
 run_pull () {
     sed -i '$d' pull.mdp                        #remove pull_coord1_k line from mdp file
     echo "pull_coord1_k = $2" >> cd /scratch/project_2006125/vanilja/pull.mdp                                       #set K in mdp
@@ -26,6 +29,20 @@ run_pull () {
     echo "pull.sh running with K=$2"
 }
 
+#Function for pulling the TK domains
+#Takes index and K as input
+#$1=index
+#$2=K
+run_pull_TK () {
+    sed -i '$d' pull_TK.mdp
+    echo "pull_coord1_k = $2" >> cd /scratch/project_2006125/vanilja/pull_TK.mdp                                       #set K in mdp
+    echo "pull_coord1_init = ???" >> cd /scratch/project_2006125/vanilja/pull_TK.mdp
+    gmx_mpi grompp -f pull_TK.mdp -c step7.gro -p topol.top -r step7.gro -n index_TK.ndx -o pull_TK.tpr -maxwarn 1
+    sbatch --output=pull_TK$2.txt --job-name=pull_TK$2 --export=K=$2 pull_TK.sh
+    $PIDs[$1]=$!
+    echo "pull_TK.sh running with K=$2"
+}
+
 #Function for determining fail/success for K
 #Takes index and K as input
 status () {
@@ -34,13 +51,14 @@ status () {
     first=${get_line: -7}                           
     last=`tail -n 1 pull$2x.xvg | awk '{print $2}'` #get last distance
     dx=(expr $last - $first)                        #difference in x
-    if [[ $dx>1 ]]                                  #if distance between the helices is > 1
+    if [[ $dx>1 ]]                                  #if distance between the domains is > 1
     then
         $status_arr[$1]=1                           #1 = successful
+        echo "Status for $1 is successful"
     else
         $status_arr[$1]=0                           #0 = unsuccessful
+        echo "Status for $1 is unsuccessful"
     fi
-    echo "Status for $1 is $status_arr[$1]"
 }
 
 #Function for determining new K
@@ -82,8 +100,8 @@ run_eq () {
     range_low=$(($target_distance - 0.25))
     echo "pull_coord1_init = $range_high" >> cd /scratch/project_2006125/vanilja/pull_eq.mdp
     echo "pull_coord2_init = $range_low" >> cd /scratch/project_2006125/vanilja/pull_eq.mdp
-    gmx_mpi grompp -f pull_eq.mdp -o pull_eq.tpr -c pull20_2.2nm.gro -r pull20_2.2nm.gro -p topol.top -n index.ndx -maxwarn 1
-    sbatch pull.sh
+    gmx_mpi grompp -f pull_eq.mdp -o pull_eq.tpr -c ??? -r ??? -p topol.top -n index.ndx -maxwarn 1
+    sbatch pull_eq.sh
     $PIDs[$1]=$!
     echo "Equilibration running with range $range_low-$range_high"
 
@@ -96,21 +114,6 @@ run_eq () {
 }
 
 
-#call run for 3 K values:
-    #run_pull 0 $K_min
-    #run_pull 1 $K_mid
-    #run_pull 2 $K_max
-#determine statuses for each
-    #status 0 $K_min      (0 is index for K_min)
-    #status 1 $K_mid
-    #status 2 $K_max
-#new K based on statuses
-    #new_K
-#call run for new K     --> (while) loop starting point
-    #run_pull 1 $K_mid
-#determine status
-    #status 1 $K_mid
-#check if done
 
 #For 10nm pulling, we need 9 different Ks (1nm -> 2nm, 2nm -> 3nm, etc.)
 #So some kind of a loop here, where first pull sims and finding K, and then equilibration
@@ -124,6 +127,41 @@ run_eq () {
 
 for ((i=0; i<=8; i++))
 do
+
+    run_pull_TK 0 $K_min
+    run_pull_TK 1 $K_mid
+    run_pull_TK 2 $K_max
+
+    status 0 $K_min      
+    status 1 $K_mid
+    status 2 $K_max
+
+    func_result=$(check_if_done)
+
+    new_K
+
+    while [[ $func_result==0 ]]         #while K isn't found yet
+    do
+        run_pull 1 $K_mid
+        status 1 $K_mid
+        func_result=$(check_if_done)
+        if [[ $func_result==1 ]]
+        then
+            local final_text="The optimal force constant has been found"
+            echo "$final_text"
+            force_constant=$K_mid
+            echo "K=$force_constant"
+            done
+        else
+            new_K                                   #continue searching
+        fi
+    done
+
+    #The best K for TK pulling is now found
+    #Continue with equilibration
+
+    run_eq_TK
+
     run_pull 0 $K_min
     run_pull 1 $K_mid
     run_pull 2 $K_max
@@ -153,8 +191,8 @@ do
         fi
     done
     
-    #The best K is now found
-    #Now time to equilibrate and then repeat pull for 2nm -> 3nm etc.
+    #The best K for TM pulling is now found
+    #Now time to equilibrate and then repeat the steps above
 
     run_eq
 
