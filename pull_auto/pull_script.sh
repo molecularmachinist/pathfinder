@@ -42,10 +42,12 @@ run_pull () {
         echo "pull_coord1_init = $init" >> /scratch/project_2006125/vanilja/pull_TK.mdp
         gmx_mpi grompp -f pull_TK.mdp -c step7.gro -p topol.top -r step7.gro -n index_TK.ndx -o pull_TK.tpr -maxwarn 1
         sbatch --output=pull_TK$2.txt --job-name=pull_TK$2 pull_TK.sh
+        gro=pull_TK$2
     else
         echo "pull_coord1_init = $init" >> /scratch/project_2006125/vanilja/pull_TM.mdp                                  #set init distance in mdp
         gmx_mpi grompp -f pull_TM.mdp -c step7.gro -p topol.top -r step7.gro -n index.ndx -o pull_TM$2.tpr -maxwarn 1       #grompp
         sbatch --output=pull_TM$2.txt --job-name=pull_TM$2 pull_TM.sh                                         #run 
+        gro=pull_TM$2
     fi                                                                                                                                 
     echo "Pulling $3 domains with K=$2"
 }
@@ -90,7 +92,6 @@ new_K () {
 }
 
 #Function for checking if the best force constant is found
-#Returns some string if done and the K
 check_if_done () {
     if [[ status_arr[1] -eq 1 && $(expr $K_mid - $K_min) -le 5 ]]         #best force constant is found if K_mid is successful and the difference to K_min is < 5
     then
@@ -105,13 +106,14 @@ check_if_done () {
 #Function needs to insert a range (+-0.25nm) into pull coord init parameters
 #K is large value 1000 
 #$1 = name of mdp file as input to determine whether equilibrating TK or TM domains
-#$2 = name of gro file to use
 run_eq () {
-    range_high=$(($target_distance + 0.25))
-    range_low=$(($target_distance - 0.25))
+    sed -i '$d' pull_$1.mdp             #delete last two lines of mdp file (pull_coord_init lines)
+    sed -i '$d' pull_$1.mdp
+    range_high=$(($init + 0.25))
+    range_low=$(($init - 0.25))
     echo "pull_coord1_init = $range_high" >> /scratch/project_2006125/vanilja/pull_$1.mdp
     echo "pull_coord2_init = $range_low" >> /scratch/project_2006125/vanilja/pull_$1.mdp
-    gmx_mpi grompp -f pull_$1.mdp -o pull_$1.tpr -c $2 -r $2 -p topol.top -n index.ndx -maxwarn 1
+    gmx_mpi grompp -f pull_$1.mdp -o pull_$1.tpr -c $gro.gro -r $gro.gro -p topol.top -n index.ndx -maxwarn 1
     sbatch --output=pull_$1.txt --job-name=pull_$1 pull_eq.sh
     echo "Running pull_$1 with range: $range_low-$range_high"
                                                
@@ -145,16 +147,13 @@ do
     status 1 $K_mid
     status 2 $K_max
 
-    func_result=$(check_if_done)
-
     new_K
 
     while [[ $func_result==0 ]]         #while K isn't found yet
     do
         run_pull 1 $K_mid
         status 1 $K_mid
-        func_result=$(check_if_done)
-        if [[ $func_result==1 ]]
+        if [[ $res -eq 1 ]]
         then
             local final_text="The optimal force constant has been found"
             echo "$final_text"
@@ -184,16 +183,13 @@ do
     status 1 $K_mid
     status 2 $K_max
 
-    func_result=$(check_if_done)
-
     new_K
 
-    while [[ $func_result==0 ]]         #while K isn't found yet
+    while [[ $res -eq 0 ]]         #while K isn't found yet
     do
         run_pull 1 $K_mid
         status 1 $K_mid
-        func_result=$(check_if_done)
-        if [[ $func_result==1 ]]
+        if [[ $res -eq 1 ]]
         then
             local final_text="The optimal force constant has been found"
             echo "$final_text"
@@ -208,6 +204,6 @@ do
     #The best K for TM pulling is now found
     #Now time to equilibrate and then repeat the steps above
 
-    run_eq eq
+    run_eq eq_TM
 
 done
