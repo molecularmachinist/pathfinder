@@ -25,58 +25,48 @@ run_pull () {
     if [[ $3 == TK ]]
     then
         sed -i '$d' pull_TK.mdp
-        echo "pull_coord1_k = $2" >> cd /scratch/project_2006125/vanilja/pull_TK.mdp                                       #set K in mdp
+        sed -i '$d' pull_TK.mdp
+        echo "pull_coord1_k = $2" >> /scratch/project_2006125/vanilja/pull_TK.mdp                                       #set K in mdp
         gmx_mpi distance -f step7.gro -s step7.gro -n index.ndx -oav distance.xvg -select 'com of group "TK1" plus com of group "TK2"'
     else
-        sed -i '$d' pull.mdp                                                                                            #remove pull_coord1_k line from mdp file
-        echo "pull_coord1_k = $2" >> cd /scratch/project_2006125/vanilja/pull_TM.mdp                                       #set K in mdp
+        sed -i '$d' pull_TM.mdp     
+        sed -i '$d' pull_TM.mdp                                                                                          #remove pull_coord1_k line from mdp file
+        echo "pull_coord1_k = $2" >> /scratch/project_2006125/vanilja/pull_TM.mdp                                       #set K in mdp
         gmx_mpi distance -f pull_eq_TK.gro -s pull_eq_TK.gro -n index.ndx -oav distance.xvg -select 'com of group "Helix1" plus com of group "Helix2"'
     fi
-    get_line=$(sed '25q;d' distance.xvg)
-    start=${get_line: -5}
-    init=$("$start + 0.6" | bc -l)
+    get_line=$(sed '25q;d' distance.xvg)                                                                        
+    start=${get_line: -5}                                                                                                  #get starting distance
+    init=$(expr "$start + 1.5" | bc -l)                                                                                         #pull 1nm (+0.5 for margin)
     if [[ $3 == TK ]]
     then
-        echo "pull_coord1_init = $init" >> cd /scratch/project_2006125/vanilja/pull_TK.mdp
+        echo "pull_coord1_init = $init" >> /scratch/project_2006125/vanilja/pull_TK.mdp
         gmx_mpi grompp -f pull_TK.mdp -c step7.gro -p topol.top -r step7.gro -n index_TK.ndx -o pull_TK.tpr -maxwarn 1
-        sbatch --output=pull_TK$2.txt --job-name=pull_TK$2 --export=K=$2 pull_TK.sh
+        sbatch --output=pull_TK$2.txt --job-name=pull_TK$2 pull_TK.sh
     else
-        echo "pull_coord1_init = $init" >> cd /scratch/project_2006125/vanilja/pull_TM.mdp                                   #set init distance in mdp
-        gmx_mpi grompp -f pull_TM.mdp -c step7.gro -p topol.top -r step7.gro -n index.ndx -o pull_TM$2.tpr -maxwarn 1         #grompp
-        sbatch --output=pull_TM$2.txt --job-name=pull_TM$2 --export=K=$2 pull_TM.sh                                              #run 
+        echo "pull_coord1_init = $init" >> /scratch/project_2006125/vanilja/pull_TM.mdp                                  #set init distance in mdp
+        gmx_mpi grompp -f pull_TM.mdp -c step7.gro -p topol.top -r step7.gro -n index.ndx -o pull_TM$2.tpr -maxwarn 1       #grompp
+        sbatch --output=pull_TM$2.txt --job-name=pull_TM$2 pull_TM.sh                                         #run 
     fi
-    $PIDs[$1]=$!                                                                                                    #save process ID                      
+    $PIDs[$1]=$!                                                                                                            #save process ID                      
     echo "Pulling $3 domains with K=$2"
 }
 
-#Function for pulling the TK domains
-#Takes index and K as input
-#$1=index
-#$2=K
-run_pull_TK () {
-    
-    echo "pull_coord1_init = $init" >> cd /scratch/project_2006125/vanilja/pull_TK.mdp
-    gmx_mpi grompp -f pull_TK.mdp -c step7.gro -p topol.top -r step7.gro -n index_TK.ndx -o pull_TK.tpr -maxwarn 1
-    sbatch --output=pull_TK$2.txt --job-name=pull_TK$2 --export=K=$2 pull_TK.sh
-    $PIDs[$1]=$!
-    echo "pull_TK.sh running with K=$2"
-}
 
 #Function for determining fail/success for K
 #Takes index and K as input
 status () {
-    wait $PIDs[$1]                                   #wait for sbatch to finish
+    wait $PIDs[$1]                                  #wait for sbatch to finish
     get_line=$(sed '18q;d' pull$2x.xvg)             #get first distance (18th line of xvg file)
     first=${get_line: -7}                           
-    last=`tail -n 1 pull$2x.xvg | awk '{print $2}'` #get last distance
-    dx=$(( $last - $first ))                        #difference in x
-    if [[ $dx>1 ]]                                  #if distance between the domains is > 1
+    last=`tail -n 1 pull$2x.xvg | awk '{print $2}'` #get last distance      awk print $2 means print second column and is not referencing to K (second input parameter)
+    dx=$(expr "$last - $first" | bc -l)             #difference in x
+    if [[ $(echo "$dx>=0.9" | bc -l) ]]             #if distance between the domains is >= 0.9
     then
         $status_arr[$1]=1                           #1 = successful
-        echo "Status for $1 is successful"
+        echo "Status for K=$2 is successful"
     else
         $status_arr[$1]=0                           #0 = unsuccessful
-        echo "Status for $1 is unsuccessful"
+        echo "Status for K=$2 is unsuccessful"
     fi
 }
 
@@ -119,8 +109,8 @@ check_if_done () {
 run_eq () {
     range_high=$(($target_distance + 0.25))
     range_low=$(($target_distance - 0.25))
-    echo "pull_coord1_init = $range_high" >> cd /scratch/project_2006125/vanilja/pull_$1.mdp
-    echo "pull_coord2_init = $range_low" >> cd /scratch/project_2006125/vanilja/pull_$1.mdp
+    echo "pull_coord1_init = $range_high" >> /scratch/project_2006125/vanilja/pull_$1.mdp
+    echo "pull_coord2_init = $range_low" >> /scratch/project_2006125/vanilja/pull_$1.mdp
     gmx_mpi grompp -f pull_$1.mdp -o pull_$1.tpr -c $2 -r $2 -p topol.top -n index.ndx -maxwarn 1
     sbatch --output=pull_$1.txt --job-name=pull_$1 pull_eq.sh
     $PIDs[0]=$!
