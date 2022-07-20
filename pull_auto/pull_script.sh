@@ -46,8 +46,7 @@ run_pull () {
         echo "pull_coord1_init = $init" >> /scratch/project_2006125/vanilja/pull_TM.mdp                                  #set init distance in mdp
         gmx_mpi grompp -f pull_TM.mdp -c step7.gro -p topol.top -r step7.gro -n index.ndx -o pull_TM$2.tpr -maxwarn 1       #grompp
         sbatch --output=pull_TM$2.txt --job-name=pull_TM$2 pull_TM.sh                                         #run 
-    fi
-    $PIDs[$1]=$!                                                                                                            #save process ID                      
+    fi                                                                                                                                 
     echo "Pulling $3 domains with K=$2"
 }
 
@@ -55,35 +54,36 @@ run_pull () {
 #Function for determining fail/success for K
 #Takes index and K as input
 status () {
-    wait $PIDs[$1]                                  #wait for sbatch to finish
     get_line=$(sed '18q;d' pull$2x.xvg)             #get first distance (18th line of xvg file)
     first=${get_line: -7}                           
     last=`tail -n 1 pull$2x.xvg | awk '{print $2}'` #get last distance      awk print $2 means print second column and is not referencing to K (second input parameter)
     dx=$(expr "$last - $first" | bc -l)             #difference in x
     if [[ $(echo "$dx>=0.9" | bc -l) ]]             #if distance between the domains is >= 0.9
     then
-        $status_arr[$1]=1                           #1 = successful
+        status_arr[$1]=1                           #1 = successful
         echo "Status for K=$2 is successful"
     else
-        $status_arr[$1]=0                           #0 = unsuccessful
+        status_arr[$1]=0                           #0 = unsuccessful
         echo "Status for K=$2 is unsuccessful"
     fi
 }
 
 #Function for determining new K
 new_K () {
-    if [[ $status_arr[0]==1 ]]                  #if min K was successful
+    if [[ $status_arr[0]==1 ]]                 #if min K was successful
     then
         done
-    elif [[ $status_arr[1]==1 ]]                #if middle K was successful
+    elif [[ $status_arr[1]==1 ]]               #if middle K was successful
     then
-        $K_max=$K_mid                           #previous middle value is now max value
-        $K_mid=$(expr ($K_mid - $K_min)/2)      #new middle value is between old mid and min
+        K_max=$K_mid                           #previous middle value is now max value
+        K_mid=$(( ($K_mid - $K_min)/2 ))       #new middle value is between old mid and min
+        K_mid=$(( (($K_mid+2)/5)*5 ))          #rounded to the nearest multiple of 5
         status_arr=(0 0 1)
-    elif [[ $status_arr[2]==1 ]]                #if max K was successful
+    elif [[ $status_arr[2]==1 ]]               #if max K was successful
     then
-        $K_min=$K_mid                           #previous mid value is now min value
-        $K_mid=$(expr ($K_max - $K_mid)/2)      #new middle value is between max and old mid
+        K_min=$K_mid                           #previous mid value is now min value
+        K_mid=$(expr ($K_max - $K_mid)/2)      #new middle value is between max and old mid
+        K_mid=$(( (($K_mid+2)/5)*5 ))          #roundend to the nearest multiple of 5
         status_arr=(0 0 1)
     fi
     echo "New K is $K_mid"
@@ -92,11 +92,11 @@ new_K () {
 #Function for checking if the best force constant is found
 #Returns some string if done and the K
 check_if_done () {
-    if [[ $status_arr[1]==1 && (expr $K_mid - $K_min)<=5 ]]         #best force constant is found if K_mid is successful and the difference to K_min is < 5
+    if [[ status_arr[1] -eq 1 && $(expr $K_mid - $K_min) -le 5 ]]         #best force constant is found if K_mid is successful and the difference to K_min is < 5
     then
-        local func_result=1                                         #1=success
+        res=1                                         #1=success
     else
-        local func_result=0                                         #0=fail
+        res=0                                         #0=fail
     fi
 }
 
@@ -113,10 +113,8 @@ run_eq () {
     echo "pull_coord2_init = $range_low" >> /scratch/project_2006125/vanilja/pull_$1.mdp
     gmx_mpi grompp -f pull_$1.mdp -o pull_$1.tpr -c $2 -r $2 -p topol.top -n index.ndx -maxwarn 1
     sbatch --output=pull_$1.txt --job-name=pull_$1 pull_eq.sh
-    $PIDs[0]=$!
     echo "Running pull_$1 with range: $range_low-$range_high"
-
-    wait $PIDs[0]                                               
+                                               
 
     #check if equilibration was successful
         #check avg force, potential, temp, pressure, volume etc
@@ -140,6 +138,8 @@ do
     run_pull 0 $K_min TK
     run_pull 1 $K_mid TK
     run_pull 2 $K_max TK
+
+    sleep 15h                           #wait for batch jobs to finish (should take about 14h)
 
     status 0 $K_min      
     status 1 $K_mid
