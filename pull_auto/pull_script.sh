@@ -4,7 +4,7 @@
 #sbatch pull_script.sh 5 50
 
 #Take K_min and K_max as variables from user input
-#or use some default values for example 5 and 1000
+#or use some default values for example 5 and 500
 K_min=$1
 K_max=$2
 K_mid=$((($K_max - $K_min)/2))
@@ -16,22 +16,37 @@ pbc_TK1=3402
 pbc_TK2=9086
 
 
-#Function for setting up the pull sim (helices) and running it
+#Function for setting up the pull sim (TM or TK) and running it
 #Takes index and K as input
 #$1=index
 #$2=K
+#$3=TM/TK
 run_pull () {
-    sed -i '$d' pull.mdp                        #remove pull_coord1_k line from mdp file
-    echo "pull_coord1_k = $2" >> cd /scratch/project_2006125/vanilja/pull.mdp                                       #set K in mdp
-    gmx_mpi distance -f pull_eq_TK.gro -s pull_eq_TK.gro -n index.ndx -oav distance.xvg -select 'com of group "Helix1" plus com of group "Helix2"'
+    if [[ $3 == TK ]]
+    then
+        sed -i '$d' pull_TK.mdp
+        echo "pull_coord1_k = $2" >> cd /scratch/project_2006125/vanilja/pull_TK.mdp                                       #set K in mdp
+        gmx_mpi distance -f step7.gro -s step7.gro -n index.ndx -oav distance.xvg -select 'com of group "TK1" plus com of group "TK2"'
+    else
+        sed -i '$d' pull.mdp                                                                                            #remove pull_coord1_k line from mdp file
+        echo "pull_coord1_k = $2" >> cd /scratch/project_2006125/vanilja/pull_TM.mdp                                       #set K in mdp
+        gmx_mpi distance -f pull_eq_TK.gro -s pull_eq_TK.gro -n index.ndx -oav distance.xvg -select 'com of group "Helix1" plus com of group "Helix2"'
+    fi
     get_line=$(sed '25q;d' distance.xvg)
     start=${get_line: -5}
     init=$("$start + 0.6" | bc -l)
-    echo "pull_coord1_init = ???" >> cd /scratch/project_2006125/vanilja/pull.mdp                                   #set init distance in mdp
-    gmx_mpi grompp -f pull.mdp -c step7.gro -p topol.top -r step7.gro -n index.ndx -o pull$2.tpr -maxwarn 1         #grompp
-    sbatch --output=pull$2.txt --job-name=pull$2 --export=K=$2 pull.sh                                              #run 
+    if [[ $3 == TK ]]
+    then
+        echo "pull_coord1_init = $init" >> cd /scratch/project_2006125/vanilja/pull_TK.mdp
+        gmx_mpi grompp -f pull_TK.mdp -c step7.gro -p topol.top -r step7.gro -n index_TK.ndx -o pull_TK.tpr -maxwarn 1
+        sbatch --output=pull_TK$2.txt --job-name=pull_TK$2 --export=K=$2 pull_TK.sh
+    else
+        echo "pull_coord1_init = $init" >> cd /scratch/project_2006125/vanilja/pull_TM.mdp                                   #set init distance in mdp
+        gmx_mpi grompp -f pull_TM.mdp -c step7.gro -p topol.top -r step7.gro -n index.ndx -o pull_TM$2.tpr -maxwarn 1         #grompp
+        sbatch --output=pull_TM$2.txt --job-name=pull_TM$2 --export=K=$2 pull_TM.sh                                              #run 
+    fi
     $PIDs[$1]=$!                                                                                                    #save process ID                      
-    echo "pull.sh running with K=$2"
+    echo "Pulling $3 domains with K=$2"
 }
 
 #Function for pulling the TK domains
@@ -39,12 +54,7 @@ run_pull () {
 #$1=index
 #$2=K
 run_pull_TK () {
-    sed -i '$d' pull_TK.mdp
-    echo "pull_coord1_k = $2" >> cd /scratch/project_2006125/vanilja/pull_TK.mdp                                       #set K in mdp
-    gmx_mpi distance -f step7.gro -s step7.gro -n index.ndx -oav distance.xvg -select 'com of group "TK1" plus com of group "TK2"'
-    get_line=$(sed '25q;d' distance.xvg)
-    start=${get_line: -5}
-    init=$("$start + 0.6" | bc -l)
+    
     echo "pull_coord1_init = $init" >> cd /scratch/project_2006125/vanilja/pull_TK.mdp
     gmx_mpi grompp -f pull_TK.mdp -c step7.gro -p topol.top -r step7.gro -n index_TK.ndx -o pull_TK.tpr -maxwarn 1
     sbatch --output=pull_TK$2.txt --job-name=pull_TK$2 --export=K=$2 pull_TK.sh
@@ -137,9 +147,9 @@ run_eq () {
 for ((i=0; i<=8; i++))
 do
 
-    run_pull_TK 0 $K_min
-    run_pull_TK 1 $K_mid
-    run_pull_TK 2 $K_max
+    run_pull 0 $K_min TK
+    run_pull 1 $K_mid TK
+    run_pull 2 $K_max TK
 
     status 0 $K_min      
     status 1 $K_mid
@@ -176,9 +186,9 @@ do
     K_mid=$((($K_max - $K_min)/2))
     K_mid=$(( (($K_mid+2)/5)*5 ))
 
-    run_pull 0 $K_min
-    run_pull 1 $K_mid
-    run_pull 2 $K_max
+    run_pull 0 $K_min TM
+    run_pull 1 $K_mid TM
+    run_pull 2 $K_max TM
 
     status 0 $K_min      
     status 1 $K_mid
