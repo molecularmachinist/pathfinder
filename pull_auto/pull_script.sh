@@ -4,14 +4,24 @@
 #sbatch pull_script.sh 5 50
 
 #Take K_min and K_max as variables from user input
-#or use some default values for example 5 and 500
+#or use some default values for example 5 and 100
+#Take total of 5 Ks, equally separated for example 5, 25, 50, 75 and 100 and run in parallel
 K_min=$1
 K_max=$2
 K_mid=$((($K_max - $K_min)/2))
 K_mid=$(( (($K_mid+2)/5)*5 ))
-K_Array=($K_min $K_mid $K_max)
-PIDs=()                             
-status_arr=(0 0 0)
+K2=$((($K_mid - $K_min)/2))
+K2=$(( (($K2+2)/5)*5 ))
+K4=$((($K_max - $K_mid)/2))
+K4=$(( (($K4+2)/5)*5 ))
+
+K_Array=($K_min $K2 $K_mid $K4 $K_max) 
+declare -A status_array                           
+status_array[K_min]=0
+status_array[K2]=0
+status_array[K_mid]=0
+status_array[K4]=0
+status_array[K_max]=0
 pbc_TK1=3402
 pbc_TK2=9086
 
@@ -30,13 +40,13 @@ run_pull () {
         gmx_mpi distance -f step7.gro -s step7.gro -n index.ndx -oav distance.xvg -select 'com of group "TK1" plus com of group "TK2"'
     else
         sed -i '$d' pull_TM.mdp     
-        sed -i '$d' pull_TM.mdp                                                                                          #remove pull_coord1_k line from mdp file
+        sed -i '$d' pull_TM.mdp                                                                                         #remove pull_coord1_k line from mdp file
         echo "pull_coord1_k = $2" >> /scratch/project_2006125/vanilja/pull_TM.mdp                                       #set K in mdp
         gmx_mpi distance -f pull_eq_TK.gro -s pull_eq_TK.gro -n index.ndx -oav distance.xvg -select 'com of group "Helix1" plus com of group "Helix2"'
     fi
     get_line=$(sed '25q;d' distance.xvg)                                                                        
-    start=${get_line: -5}                                                                                                  #get starting distance
-    init=$(expr "$start + 1.5" | bc -l)                                                                                         #pull 1nm (+0.5 for margin)
+    start=${get_line: -5}                                                                                               #get starting distance
+    init=$(expr "$start + 1.5" | bc -l)                                                                                 #pull 1nm (+0.5 for margin)
     if [[ $3 == TK ]]
     then
         echo "pull_coord1_init = $init" >> /scratch/project_2006125/vanilja/pull_TK.mdp
@@ -44,9 +54,9 @@ run_pull () {
         sbatch --output=pull_TK$2.txt --job-name=pull_TK$2 pull_TK.sh
         gro=pull_TK$2
     else
-        echo "pull_coord1_init = $init" >> /scratch/project_2006125/vanilja/pull_TM.mdp                                  #set init distance in mdp
-        gmx_mpi grompp -f pull_TM.mdp -c step7.gro -p topol.top -r step7.gro -n index.ndx -o pull_TM$2.tpr -maxwarn 1       #grompp
-        sbatch --output=pull_TM$2.txt --job-name=pull_TM$2 pull_TM.sh                                         #run 
+        echo "pull_coord1_init = $init" >> /scratch/project_2006125/vanilja/pull_TM.mdp                                 #set init distance in mdp
+        gmx_mpi grompp -f pull_TM.mdp -c step7.gro -p topol.top -r step7.gro -n index.ndx -o pull_TM$2.tpr -maxwarn 1   #grompp
+        sbatch --output=pull_TM$2.txt --job-name=pull_TM$2 pull_TM.sh                                                   #run 
         gro=pull_TM$2
     fi                                                                                                                                 
     echo "Pulling $3 domains with K=$2"
@@ -62,42 +72,60 @@ status () {
     dx=$(expr "$last - $first" | bc -l)             #difference in x
     if [[ $(echo "$dx>=0.9" | bc -l) ]]             #if distance between the domains is >= 0.9
     then
-        status_arr[$1]=1                           #1 = successful
+        status_array[$1]=1                            #1 = successful
         echo "Status for K=$2 is successful"
     else
-        status_arr[$1]=0                           #0 = unsuccessful
+        status_array[$1]=0                            #0 = unsuccessful
         echo "Status for K=$2 is unsuccessful"
     fi
 }
 
 #Function for determining new K
-new_K () {
-    if [[ $status_arr[0]==1 ]]                 #if min K was successful
+#Assumes the status_array has 3 values
+new_K_3 () {
+    if [[ status_array[0] -eq 1 ]]             #if min K was successful
     then
         done
-    elif [[ $status_arr[1]==1 ]]               #if middle K was successful
+    elif [[ status_array[1] -eq 1 ]]           #if middle K was successful
     then
         K_max=$K_mid                           #previous middle value is now max value
         K_mid=$(( ($K_mid - $K_min)/2 ))       #new middle value is between old mid and min
         K_mid=$(( (($K_mid+2)/5)*5 ))          #rounded to the nearest multiple of 5
-        status_arr=(0 0 1)
-    elif [[ $status_arr[2]==1 ]]               #if max K was successful
+        status_array=(0 0 1)
+    elif [[ status_array[2] -eq 1 ]]           #if max K was successful
     then
         K_min=$K_mid                           #previous mid value is now min value
         K_mid=$(expr ($K_max - $K_mid)/2)      #new middle value is between max and old mid
         K_mid=$(( (($K_mid+2)/5)*5 ))          #roundend to the nearest multiple of 5
-        status_arr=(0 0 1)
+        status_array=(0 0 1)
     fi
     echo "New K is $K_mid"
 }
 
+#New function for parallel version
+#Assumes the status_array has 5 values
+new_K_5 () {
+    for i in "${K_array[@]}"
+    do
+        if [[ ${status_array[$i]} -eq 1 ]]
+        then
+            K_max=$i
+            K_min=$i-1
+            K_mid=$(expr ($K_max - $K_min)/2)
+            K_mid=$(( (($K_mid+2)/5)*5 ))
+            status_array=(0 0 1)
+            break
+        fi
+    done        
+}
+
 #Function for checking if the best force constant is found
 check_if_done () {
-    if [[ status_arr[1] -eq 1 && $(expr $K_mid - $K_min) -le 5 ]]         #best force constant is found if K_mid is successful and the difference to K_min is < 5
+    if [[ status_array[1] -eq 1 && $(expr $K_mid - $K_min) -le 5 ]]         #best force constant is found if K_mid is successful and the difference to K_min is < 5
     then
-        res=1                                         #1=success
+        res=1                                                             #1=success
     else
-        res=0                                         #0=fail
+        res=0                                                             #0=fail
     fi
 }
 
@@ -124,9 +152,6 @@ run_eq () {
         #run again?
 }
 
-#For 10nm pulling, we need 9 different Ks (1nm -> 2nm, 2nm -> 3nm, etc.)
-#So some kind of a loop here, where first pull sims and finding K, and then equilibration
-#after every 1nm of pulling
 
 #(Not sure if this is necessary, because this tool should be universal)
 #First we need to pull the TK domains 5Å apart (every atom is 5Å apart) 
@@ -138,16 +163,20 @@ for ((i=0; i<=8; i++))
 do
 
     run_pull 0 $K_min TK
-    run_pull 1 $K_mid TK
-    run_pull 2 $K_max TK
+    run_pull 1 $K2 TK
+    run_pull 2 $K_mid TK
+    run_pull 3 $K2 TK
+    run_pull 4 $K_max TK
 
     sleep 15h                           #wait for batch jobs to finish (should take about 14h)
 
-    status 0 $K_min      
-    status 1 $K_mid
-    status 2 $K_max
+    status 0 $K_min
+    status 1 $K2      
+    status 2 $K_mid
+    status 3 $K4
+    status 4 $K_max
 
-    new_K
+    new_K_5
 
     while [[ $func_result==0 ]]         #while K isn't found yet
     do
@@ -161,14 +190,15 @@ do
             echo "K=$force_constant"
             done
         else
-            new_K                                   #continue searching
+            new_K_3                                   #continue searching for best K
         fi
     done
 
     #The best K for TK pulling is now found
+
     #Continue with equilibration
 
-    run_eq eq_TK
+    run_eq eq_TK                            #equilibrate TK domains
 
     K_min=$1
     K_max=$2
@@ -204,6 +234,6 @@ do
     #The best K for TM pulling is now found
     #Now time to equilibrate and then repeat the steps above
 
-    run_eq eq_TM
+    run_eq eq_TM            #equilibrate TM domains
 
 done
