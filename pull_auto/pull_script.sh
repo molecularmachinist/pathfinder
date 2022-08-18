@@ -1,5 +1,6 @@
 #!/bin/bash
 
+module load gromacs
 
 #Take K_MIN and K_MAX as variables from user input
 #or use some default values for example 5 and 100
@@ -15,13 +16,17 @@ read -p "Enter the name of the index file with filename extension (e.g. index.nd
 read -p "Enter the name of the gro file to start simulations with, with filename extensions: " GRO_FILE
 read -p "How many domains?" NUM_OF_DOMAINS
 
-for ((  ))
+for ((i=1; i<=$NUM_OF_DOMAINS; i++))
 do
     echo "Enter domains in the order you want them to be pushed/pulled"
-    read -p "Enter domain name (uppercase abbreviation, for example TK, JM): " DOMAIN_NAME
+    read -p "Enter domain name (uppercase abbreviation (the same as in the index groups), for example TK, JM): " DOMAIN_NAME
     $DOMAIN_NAMES+=$DOMAIN_NAME
     read -p "Push or pull? " DIRECTION
     read -p "What is the target distance? Enter in nm " DISTANCE
+    gmx_mpi distance -f $GRO_FILE -s $GRO_FILE -n $INDEX_FILE -oav distance.xvg -select 'com of group "${DOMAIN_NAME}1" plus com of group "${DOMAIN_NAME}2"'
+    GET_LINE=$(sed '25q;d' distance.xvg)                                                                        
+    START_$DOMAIN_NAME=${GET_LINE: -5}
+    NUM_OF_ITERATIONS_${DOMAIN_NAME}=$(expr "$DISTANCE-${START_${DOMAIN_NAME}}")
 done
 
 K_MIN_ORIG=5                            #some starting values for K
@@ -50,48 +55,18 @@ STATUS_ARRAY[K_MAX]=0
 #$2=K
 #$3=DOMAIN
 run_pull () {
-    ITERATION=$1
-    K=$2
-    DOMAIN=$3
-    if [[ $DOMAIN == TK ]]
-    then
-        sed -i '$d' pull_TK.mdp
-        sed -i '$d' pull_TK.mdp
-        echo "pull_coord1_k = $K" >> /scratch/project_2006125/vanilja/pull_TK.mdp                                       #set K in mdp
-        gmx_mpi distance -f step7.gro -s step7.gro -n index.ndx -oav distance.xvg -select 'com of group "TK1" plus com of group "TK2"'
-    elif [[ $DOMAIN == JM ]]
-    then
-        sed -i '$d' pull_JM.mdp
-        sed -i '$d' pull_JM.mdp
-        echo "pull_coord1_k = $K" >> /scratch/project_2006125/vanilja/pull_JM.mdp                                       #set K in mdp
-        gmx_mpi distance -f pull_eq_TK${ITERATION}.gro -s pull_eq_TK${ITERATION}.gro -n index.ndx -oav distance.xvg -select 'com of group "JM1" plus com of group "JM2"'
-    else
-        sed -i '$d' pull_TM.mdp     
-        sed -i '$d' pull_TM.mdp                                                                                         #remove pull_coord1_k line from mdp file
-        echo "pull_coord1_k = $K" >> /scratch/project_2006125/vanilja/pull_TM.mdp                                       #set K in mdp
-        gmx_mpi distance -f pull_eq_JM${ITERATION}.gro -s pull_eq_JM${ITERATION}.gro -n index.ndx -oav distance.xvg -select 'com of group "Helix1" plus com of group "Helix2"'
-    fi
-    GET_LINE=$(sed '25q;d' distance.xvg)                                                                        
-    START=${GET_LINE: -5}                                                                                               #get starting distance
+    local ITERATION=$1
+    local K=$2
+    local DOMAIN=$3
+
+    sed -i '$d' pull_$DOMAIN.mdp             #delete last two lines of mdp file (pull_coord_init lines)
+    sed -i '$d' pull_$DOMAIN.mdp
+    echo "pull_coord1_k = $K" >> pull_$DOMAIN.mdp                                       #set K in mdp                                                                                               #get starting distance
     INIT=$(expr "$START + 1.5" | bc -l)                                                                                 #pull 1nm (+0.5 for margin)
-    if [[ $DOMAIN == TK ]]
-    then
-        echo "pull_coord1_init = $INIT" >> /scratch/project_2006125/vanilja/pull_TK.mdp                                 #set init distance in mdp
-        gmx_mpi grompp -f pull_TK.mdp -c step7.gro -p topol.top -r step7.gro -n index.ndx -o pull_TK${ITERATION}_$K.tpr -maxwarn 1
-        sbatch --output=pull_TK${ITERATION}_$K.txt --job-name=pull_TK${ITERATION}_$K pull_TK.sh
-        GRO=pull_TK${ITERATION}_$K
-    elif [[ $DOMAIN == JM ]]
-    then
-        echo "pull_coord1_init = $INIT" >> /scratch/project_2006125/vanilja/pull_JM.mdp                                 #set init distance in mdp
-        gmx_mpi grompp -f pull_JM.mdp -c pull_eq_TK.gro -p topol.top -r pull_eq_TK.gro -n index.ndx -o pull_JM${ITERATION}_$K.tpr -maxwarn 1
-        sbatch --output=pull_JM${ITERATION}_$K.txt --job-name=pull_JM${ITERATION}_$K pull_JM.sh
-        GRO=pull_JM${ITERATION}_$K
-    else
-        echo "pull_coord1_init = $INIT" >> /scratch/project_2006125/vanilja/pull_TM.mdp                                 #set init distance in mdp
-        gmx_mpi grompp -f pull_TM.mdp -c pull_eq_JM.gro -p topol.top -r pull_eq_JM.gro -n index.ndx -o pull_TM${ITERATION}_$K.tpr -maxwarn 1   #grompp
-        sbatch --output=pull_TM${ITERATION}_$K.txt --job-name=pull_TM${ITERATION}_$K pull_TM.sh                                                   #run 
-        GRO=pull_TM${ITERATION}_$K
-    fi                                                                                                                                 
+    echo "pull_coord1_init = $INIT" >> pull_$DOMAIN.mdp                                 #set init distance in mdp
+    gmx_mpi grompp -f pull_$DOMAIN.mdp -c $GRO_FILE -p topol.top -r $GRO_FILE -n $INDEX_FILE -o pull_${DOMAIN}${ITERATION}_$K.tpr -maxwarn 1
+    sbatch --output=pull_${DOMAIN}${ITERATION}_$K.txt --job-name=pull_${DOMAIN}${ITERATION}_$K pull_$DOMAIN.sh
+    GRO_FILE=pull_${DOMAIN}${ITERATION}_$K                                                                                                                               
     echo "Pulling $DOMAIN domains (iteration $ITERATION) with K=$K"
 }
 
@@ -102,17 +77,22 @@ run_pull () {
 #$2 = domain
 #$3 = K
 status () {
-    GET_LINE=$(sed '18q;d' pull_$2_$3x.xvg)             #get first distance (18th line of xvg file)
+    local INDEX=$1
+    local DOMAIN=$2
+    local K=$3
+    local ITERATION=$4
+
+    GET_LINE=$(sed '18q;d' pull_${DOMAIN}${ITERATION}_${K}x.xvg)             #get first distance (18th line of xvg file)
     FIRST=${GET_LINE: -7}                           
-    LAST=`tail -n 1 pull_$2_$3x.xvg | awk '{print $2}'` #get last distance      awk print $2 means print second column and $2 is not referencing to K (second input parameter)
+    LAST=`tail -n 1 pull_${DOMAIN}${ITERATION}_${K}x.xvg | awk '{print $2}'` #get last distance      awk print $2 means print second column and $2 is not referencing to K (second input parameter)
     DX=$(expr "$LAST - $FIRST" | bc -l)                 #difference in x
     if [[ $(echo "$DX>=0.9" | bc -l) ]]                 #if distance between the domains is >= 0.9
     then
-        STATUS_ARRAY[$1]=1                              #1 = successful
-        echo "Status for $2 domain K=$3 is successful"
+        STATUS_ARRAY[$INDEX]=1                              #1 = successful
+        echo "Status for $DOMAIN domain iteration $ITERATION K=$K is successful"
     else
-        STATUS_ARRAY[$1]=0                              #0 = unsuccessful
-        echo "Status for $2 domain K=$3 is unsuccessful"
+        STATUS_ARRAY[$INDEX]=0                              #0 = unsuccessful
+        echo "Status for $DOMAIN domain iteration $ITERATION K=$K is unsuccessful"
     fi
 }
 
@@ -159,9 +139,9 @@ new_K_5 () {
 check_if_done () {
     if [[ STATUS_ARRAY[1] -eq 1 && $(expr $K_MID - $K_MIN) -le 5 ]]         #best force constant is found if K_MID is successful and the difference to K_MIN is < 5
     then
-        res=1                                                             #1=success
+        RES=1                                                             #1=success
     else
-        res=0                                                             #0=fail
+        RES=0                                                             #0=fail
     fi
 }
 
@@ -170,16 +150,20 @@ check_if_done () {
 #Function needs to insert a range (+-0.25nm) into pull coord init parameters
 #K is large value 1000 
 #$1 = domain (TK, JM or TM)
+#$2 = index/iteration
 run_eq () {
-    sed -i '$d' pull_eq_$1.mdp             #delete last two lines of mdp file (pull_coord_init lines)
-    sed -i '$d' pull_eq_$1.mdp
-    RANGE_HIGH=$(($init + 0.25))
-    RANGE_LOW=$(($init - 0.25))
-    echo "pull_coord1_init = $RANGE_HIGH" >> /scratch/project_2006125/vanilja/pull_eq_$1.mdp
-    echo "pull_coord2_init = $RANGE_LOW" >> /scratch/project_2006125/vanilja/pull_eq_$1.mdp
-    gmx_mpi grompp -f pull_eq_$1.mdp -o pull_eq_$1.tpr -c $GRO_FILE -r $GRO_FILE -p topol.top -n index.ndx -maxwarn 1
-    sbatch --output=pull_eq_$1.txt --job-name=pull_eq_$1 pull_eq.sh
-    echo "Running pull_$1 with range: $RANGE_LOW-$RANGE_HIGH"
+    local DOMAIN=$1
+    local ITERATION=$2
+
+    sed -i '$d' pull_eq.mdp             #delete last two lines of mdp file (pull_coord_init lines)
+    sed -i '$d' pull_eq.mdp
+    RANGE_HIGH=$(($INIT + 0.25))
+    RANGE_LOW=$(($INIT - 0.25))
+    echo "pull_coord1_init = $RANGE_HIGH" >> pull_eq.mdp
+    echo "pull_coord2_init = $RANGE_LOW" >> pull_eq.mdp
+    gmx_mpi grompp -f pull_eq.mdp -o pull_eq_${DOMAIN}${ITERATION}.tpr -c $GRO_FILE -r $GRO_FILE -p topol.top -n $INDEX_FILE -maxwarn 1
+    sbatch --output=pull_eq_${DOMAIN}${ITERATION}.txt --job-name=pull_eq_${DOMAIN}${ITERATION} pull_eq.sh
+    echo "Running pull_${DOMAIN}${ITERATION} with range: $RANGE_LOW-$RANGE_HIGH"
                                                
 
     #check if equilibration was successful
@@ -196,7 +180,10 @@ run_eq () {
     #$1 = domain
     #$2 = number of iterations
 run_simulation () {
-    for ((i=0; i<=$2; i++))          
+    local DOMAIN=$1
+    local NUM_OF_ITERATIONS=$2
+
+    for ((i=1; i<=$NUM_OF_ITERATIONS; i++))          
     do
         K_MIN=$K_MIN_ORIG                   #set 5 different evenly spaced Ks 
         K_MAX=$K_MAX_ORIG                   
@@ -207,27 +194,25 @@ run_simulation () {
         K4=$((($K_MAX - $K_MID)/2))
         K4=$(( (($K4+2)/5)*5 ))
 
-        run_pull $i $K_MIN $1                #run 5 pulling sims with different Ks
-        run_pull $i $K2 $1
-        run_pull $i $K_MID $1
-        run_pull $i $K2 $1
-        run_pull $i $K_MAX $1
+        for ((j=0; j<=4; j++))                  #run pulling sims for 5 different Ks
+        do
+            run_pull $i $K_ARRAY[$j] $DOMAIN
+        done
 
         sleep 15h                           #wait for batch jobs to finish (should take about 14h)
 
-        status 0 $1 $K_MIN 
-        status 1 $1 $K2      
-        status 2 $1 $K_MID                     #check if sims were successful
-        status 3 $1 $K4
-        status 4 $1 $K_MAX
+        for ((j=0; j<=4; j++))                  
+        do
+            status $j $DOMAIN $K_ARRAY[$j] $i
+        done
 
         new_K_5
 
         while [[ $FUNC_RESULT==0 ]]         #while K isn't found yet
         do
-            run_pull $2 $K_MID
+            run_pull $i $K_MID $DOMAIN
             status 1 $K_MID
-            if [[ $res -eq 1 ]]
+            if [[ $RES -eq 1 ]]
             then
                 local FINAL_TEXT="The optimal force constant has been found"
                 echo "$FINAL_TEXT"
@@ -241,7 +226,11 @@ run_simulation () {
 
         #Continue with equilibration
 
-        run_eq eq_$1                            #equilibrate domains
+        run_eq $DOMAIN $i                           #equilibrate domains
+
+        sleep 15h
+
+        GRO_FILE=pull_eq_${DOMAIN}$i
 }
 
 
