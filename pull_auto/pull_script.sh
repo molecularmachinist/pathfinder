@@ -9,6 +9,10 @@ module load gromacs
 
 #Array for domain/molecule names that the user wants to be pulled/pushed
 declare -A DOMAIN_NAMES
+#Array for starting distances
+declare -A STARTS
+#Array for number of iterations each total pull will need
+declare -A ITERATIONS
 
 #Ask the user for the index file, the first gro file (gro file of the first domain/molecule to be pulled) 
 #and how many domains/molecules are we working with
@@ -20,13 +24,13 @@ for ((i=1; i<=$NUM_OF_DOMAINS; i++))
 do
     echo "Enter domains in the order you want them to be pushed/pulled"
     read -p "Enter domain name (uppercase abbreviation (the same as in the index groups), for example TK, JM): " DOMAIN_NAME
-    $DOMAIN_NAMES+=$DOMAIN_NAME
+    DOMAIN_NAMES+=$DOMAIN_NAME
     read -p "Push or pull? " DIRECTION
-    read -p "What is the target distance? Enter in nm " DISTANCE
-    gmx_mpi distance -f $GRO_FILE -s $GRO_FILE -n $INDEX_FILE -oav distance.xvg -select 'com of group "${DOMAIN_NAME}1" plus com of group "${DOMAIN_NAME}2"'
+    read -p "What is the target distance? Enter in nm: " TARGET
+    gmx_mpi distance -f $GRO_FILE -s $GRO_FILE -n $INDEX_FILE -oav distance.xvg -select "com of group ${DOMAIN_NAME}1 plus com of group ${DOMAIN_NAME}2"
     GET_LINE=$(sed '25q;d' distance.xvg)                                                                        
-    START_$DOMAIN_NAME=${GET_LINE: -5}
-    NUM_OF_ITERATIONS_${DOMAIN_NAME}=$(expr "$DISTANCE-${START_${DOMAIN_NAME}}")
+    STARTS+=( ["${DOMAIN_NAME}"]=${GET_LINE: -5} )
+    ITERATIONS+=( ["${DOMAIN_NAME}"]=$(expr "$TARGET-${STARTS[${DOMAIN_NAME}]}" | bc -l) )
 done
 
 K_MIN_ORIG=5                            #some starting values for K
@@ -39,14 +43,15 @@ K2=$((($K_MID - $K_MIN)/2))
 K2=$(( (($K2+2)/5)*5 ))
 K4=$((($K_MAX - $K_MID)/2))
 K4=$(( (($K4+2)/5)*5 ))
+K4=$(( $K4+$K_MID ))
 
 K_ARRAY=($K_MIN $K2 $K_MID $K4 $K_MAX) 
 declare -A STATUS_ARRAY                           
-STATUS_ARRAY[K_MIN]=0
-STATUS_ARRAY[K2]=0
-STATUS_ARRAY[K_MID]=0
-STATUS_ARRAY[K4]=0
-STATUS_ARRAY[K_MAX]=0
+STATUS_ARRAY[0]=0
+STATUS_ARRAY[1]=0
+STATUS_ARRAY[2]=0
+STATUS_ARRAY[3]=0
+STATUS_ARRAY[4]=0
 
 
 #Function for setting up the pull sim (TK, JM or TM) and running it
@@ -59,10 +64,10 @@ run_pull () {
     local K=$2
     local DOMAIN=$3
 
-    sed -i '$d' pull_$DOMAIN.mdp             #delete last two lines of mdp file (pull_coord_init lines)
+    sed -i '$d' pull_$DOMAIN.mdp                                                        #delete last two lines of mdp file (pull_coord_init and K lines)
     sed -i '$d' pull_$DOMAIN.mdp
     echo "pull_coord1_k = $K" >> pull_$DOMAIN.mdp                                       #set K in mdp                                                                                               #get starting distance
-    INIT=$(expr "$START + 1.5" | bc -l)                                                                                 #pull 1nm (+0.5 for margin)
+    INIT=$(expr "${STARTS[${DOMAIN}]} + 1.5" | bc -l)                                   #pull 1nm (+0.5 for margin)
     echo "pull_coord1_init = $INIT" >> pull_$DOMAIN.mdp                                 #set init distance in mdp
     gmx_mpi grompp -f pull_$DOMAIN.mdp -c $GRO_FILE -p topol.top -r $GRO_FILE -n $INDEX_FILE -o pull_${DOMAIN}${ITERATION}_$K.tpr -maxwarn 1
     sbatch --output=pull_${DOMAIN}${ITERATION}_$K.txt --job-name=pull_${DOMAIN}${ITERATION}_$K pull_$DOMAIN.sh
@@ -86,7 +91,7 @@ status () {
     FIRST=${GET_LINE: -7}                           
     LAST=`tail -n 1 pull_${DOMAIN}${ITERATION}_${K}x.xvg | awk '{print $2}'` #get last distance      awk print $2 means print second column and $2 is not referencing to K (second input parameter)
     DX=$(expr "$LAST - $FIRST" | bc -l)                 #difference in x
-    if [[ $(echo "$DX>=0.9" | bc -l) ]]                 #if distance between the domains is >= 0.9
+    if [[ $(echo "$DX>=0.9" | bc -l) -eq "1" ]]                 #if distance between the domains is >= 0.9
     then
         STATUS_ARRAY[$INDEX]=1                              #1 = successful
         echo "Status for $DOMAIN domain iteration $ITERATION K=$K is successful"
@@ -208,11 +213,12 @@ run_simulation () {
 
         new_K_5
 
-        while [[ $FUNC_RESULT==0 ]]         #while K isn't found yet
+        while [[ $FUNC_RESULT -eq "0" ]]         #while K isn't found yet
         do
             run_pull $i $K_MID $DOMAIN
             status 1 $K_MID
-            if [[ $RES -eq 1 ]]
+            check_if_done
+            if [[ $RES -eq "1" ]]
             then
                 local FINAL_TEXT="The optimal force constant has been found"
                 echo "$FINAL_TEXT"
