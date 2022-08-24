@@ -1,0 +1,39 @@
+PATHFINDER
+This is the plan for coding the pathfinder tool.
+
+
+Scripts/functions:
+-each output has own MDAnalysis function
+-input reader function
+-log reader 
+
+
+Inputs (config file):
+-delta x, for example 1nm
+-all of slurm arguments: nodes, tasks, time etc.
+-mdp files for pulling and eq
+-each has some default values or sends an error if not supplied
+-Kmin and Kmax
+-reaction coordinate
+-pull groups
+-which part of system for xtc file (e.g. protein)
+
+Outputs:
+-error log
+    -if not successful, increase wall time or double K_MAX
+-pullx and pullf matplotlib png files
+-end structure files in pdb format
+-rmsd plot of equilibration
+-optional xtc rsync with warning of large size
+-tree diagram of simulations which shows the successful route
+-movie of concat trajectories
+
+TO DO:
+-eq success is determined by rmsd and wall time
+-user check for each iteration
+-remove functions for 3 Ks, use 5 for each
+-function for removing unnecessary files
+-bash damon for waiting
+-log file
+(-comments, README file, testing)
+
