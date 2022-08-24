@@ -142,11 +142,28 @@ new_K_5 () {
 
 #Function for checking if the best force constant is found
 check_if_done () {
-    if [[ STATUS_ARRAY[1] -eq 1 && $(expr $K_MID - $K_MIN) -le 5 ]]         #best force constant is found if K_MID is successful and the difference to K_MIN is < 5
+    if [[ ${#STATUS_ARRAY[@]} -eq 3 ]]
     then
-        RES=1                                                             #1=success
-    else
-        RES=0                                                             #0=fail
+        if [[ STATUS_ARRAY[1] -eq 1 && $(expr $K_MID - $K_MIN) -le 5 ]]         #best force constant is found if K_MID is successful and the difference to K_MIN is < 5
+        then
+            RES=1                                                             #1=success
+        else
+            RES=0                                                             #0=fail
+        fi
+    elif [[ ${#STATUS_ARRAY[@]} -eq 5 ]]
+        if [[ STATUS_ARRAY[1] -eq 1 && $(expr $K2 - $K_MIN) -le 5 ]]          #best force constant is found if K_MID is successful and the difference to K_MIN is < 5
+        then
+            RES=1                                                             #1=success
+            BEST_K=$K2
+        elif [[ STATUS_ARRAY[2] -eq 1 && $(expr $K_MID - $K2) -le 5 ]]
+            RES=1
+            BEST_K=$K_MID
+        elif [[ STATUS_ARRAY[3] -eq 1 && $(expr $K4 - $K_MID) -le 5 ]]
+            RES=1
+            BEST_K=$K4
+        else
+            RES=0                                                             #0=fail
+        fi
     fi
 }
 
@@ -211,9 +228,17 @@ run_simulation () {
             status $j $DOMAIN $K_ARRAY[$j] $i
         done
 
-        new_K_5
+        check_if_done
+        if [[ $RES -eq 1 ]]
+        then
+            local FINAL_TEXT="The optimal force constant has been found"
+            echo "$FINAL_TEXT"
+            echo "K=$BEST_K"
+        else
+            new_K_5                                   #continue searching for best K
+        fi
 
-        while [[ $FUNC_RESULT -eq "0" ]]         #while K isn't found yet
+        while [[ $FUNC_RESULT -eq 0 ]]         #while K isn't found yet
         do
             run_pull $i $K_MID $DOMAIN
             status 1 $K_MID
