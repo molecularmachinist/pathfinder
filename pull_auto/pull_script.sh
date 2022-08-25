@@ -25,7 +25,7 @@ do
     echo "Enter domains in the order you want them to be pushed/pulled"
     read -p "Enter domain name (uppercase abbreviation (the same as in the index groups), for example TK, JM): " DOMAIN_NAME
     DOMAIN_NAMES+=$DOMAIN_NAME
-    read -p "Push or pull? " DIRECTION
+    read -p "Push (together) or pull (apart)? Answer push/pull " DIRECTION
     read -p "What is the target distance? Enter in nm: " TARGET
     gmx_mpi distance -f $GRO_FILE -s $GRO_FILE -n $INDEX_FILE -oav distance.xvg -select "com of group ${DOMAIN_NAME}1 plus com of group ${DOMAIN_NAME}2"
     GET_LINE=$(sed '25q;d' distance.xvg)                                                                        
@@ -211,9 +211,29 @@ run_eq () {
                                                
 
     #check if equilibration was successful
-        #check avg force, potential, temp, pressure, volume etc
-    #what to do if not successful?
-        #run again?
+        #check rmsd
+    #what to do if not successful
+        #increase wall time 
+}
+
+ask_continue () {
+    echo "The first iteration of pulling and equilibration has finished."
+    echo "Please check the pullf and pullx files, aswell as the trajectory files and make sure everything looks correct."
+    while true; do
+        read -p "Do you wish to continue to the next iteration? Y/N?" ANSWER        #Ask if the user wishes to continue simulations
+        case "$ANSWER" in
+            [yY] | [yY][eE][sS])
+                echo "You answered yes. Continuing the simulations"
+                break
+                ;;
+            [nN] | [nN][oO])
+                echo "You answered no. Exiting"
+                exit 1
+                ;;
+            *)
+                echo "Invalid input" >&2
+        esac
+    done
 }
 
 
@@ -245,13 +265,13 @@ run_simulation () {
 
         sleep 15h                           #wait for batch jobs to finish (should take about 14h)
 
-        for ((j=0; j<=4; j++))                  
+        for ((j=0; j<=4; j++))                  #determine status for each K
         do
-            status $j $DOMAIN $K_ARRAY[$j] $i
+            status $j $DOMAIN $K_ARRAY[$j] $i   #status=1 means the K managed to pull/push and status=0 means the K didn't manage to pull/push
         done
 
-        check_if_done
-        if [[ $RES -eq 1 ]]
+        check_if_done                           #check if the best K has been found
+        if [[ $RES -eq 1 ]]                     #stop search is K is found
         then
             local FINAL_TEXT="The optimal force constant has been found"
             echo "$FINAL_TEXT"
@@ -260,12 +280,12 @@ run_simulation () {
             new_K_5                                   #continue searching for best K
         fi
 
-        while [[ $FUNC_RESULT -eq 0 ]]         #while K isn't found yet
+        while [[ $RES -eq 0 ]]         #while K isn't found yet
         do
             run_pull $i $K_MID $DOMAIN
             status 1 $K_MID
             check_if_done
-            if [[ $RES -eq "1" ]]
+            if [[ $RES -eq 1 ]]
             then
                 local FINAL_TEXT="The optimal force constant has been found"
                 echo "$FINAL_TEXT"
@@ -277,21 +297,30 @@ run_simulation () {
             fi
         done
 
-        #Continue with equilibration
-
-        run_eq $DOMAIN $i                           #equilibrate domains
+        run_eq $DOMAIN $i                           #equilibrate
 
         sleep 15h
 
-        GRO_FILE=pull_eq_${DOMAIN}$i
+        if [[ $i -ne $NUM_OF_ITERATIONS ]]
+        do
+            ask_continue                                #ask user if they wish to continue with the next iteration
+        else
+            echo "That was the last iteration. The program will stop now."
+        fi
+
+        GRO_FILE=pull_eq_${DOMAIN}$i                #next iteration will continue with the gro file from the equilibration
+    done
 }
 
 
-#This is actually running the simulations
 
+
+#This is actually running the simulations
+#Run simulation for each domain (e.g. TK, JM and TM)
+#Number of iterations depends on the target distance
     for ((i=0; i<$NUM_OF_DOMAINS; i++))
     do
-        run_simulation $DOMAIN_NAMES[i] $NUM_OF_ITERATIONS
+        run_simulation $DOMAIN_NAMES[$i] $NUM_OF_ITERATIONS
     done
 
 
