@@ -7,7 +7,6 @@ Scripts/functions:
 -input reader function
 -log reader 
 
-
 Inputs (config file):
 -delta x, for example 1nm
 -all of slurm arguments: nodes, tasks, time etc.
@@ -30,10 +29,14 @@ Outputs:
 
 TO DO:
 -eq success is determined by rmsd and wall time
--user check for each iteration
--remove functions for 3 Ks, use 5 for each
+    -how to analyze slope of rmsd end point
 -function for removing unnecessary files
--bash damon for waiting
+-bash daemon for waiting
+-input config file
 -log file
+-make a file system with folders and move between them
+-rsync files, warning for large files
 (-comments, README file, testing)
 
+Questions:
+-is exit 1 best way to end program?
