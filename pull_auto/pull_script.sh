@@ -13,6 +13,9 @@ declare -A DOMAIN_NAMES
 declare -A STARTS
 #Array for number of iterations each total pull will need
 declare -A ITERATIONS
+#Array for keeping track of the successful route of simulations
+declare -A ROUTE
+
 
 #Ask the user for the index file, the first gro file (gro file of the first domain/molecule to be pulled) 
 #and how many domains/molecules are we working with
@@ -209,13 +212,23 @@ run_eq () {
     sbatch --output=pull_eq_${DOMAIN}${ITERATION}.txt --job-name=pull_eq_${DOMAIN}${ITERATION} pull_eq.sh
     echo "Running pull_${DOMAIN}${ITERATION} with range: $RANGE_LOW-$RANGE_HIGH"
                                                
-
     #check if equilibration was successful
         #check rmsd
     #what to do if not successful
         #increase wall time 
+
+    gmx_mpi rms -s pull_eq_${DOMAIN}${ITERATION}.tpr -f pull_eq_${DOMAIN}${ITERATION}.trr -o pull_eq_${DOMAIN}${ITERATION}_rmsd.xvg -tu ns
+    echo "backbone backbone"
+    #analyze rmsd
+    #take slope at end of rmsd graph
+    #if close to 0, is successful
+    #k=dy/dx
+    #one option is to take the last few values of rmsd.xvg and calc slope
+    #if 0 +- ??? is successful
+    #slope needs to be somehow averaged, only a few values wont be enough
 }
 
+#Ask user if they wish to continue simulation with the next iteration
 ask_continue () {
     echo "The first iteration of pulling and equilibration has finished."
     echo "Please check the pullf and pullx files, aswell as the trajectory files and make sure everything looks correct."
@@ -234,6 +247,25 @@ ask_continue () {
                 echo "Invalid input" >&2
         esac
     done
+}
+
+#Function for cleaning up unnecessary files
+cleanup () {
+    echo "Removing files from the unsuccessful simulations is recommended."
+    read -p "Do you want to delete unnecessary files? Y/N" CLEAN
+    case "$CLEAN" in 
+        [yY] | [yY][eE][sS])
+            echo "You answered yes. Deleting unnecessary files."
+
+            break
+            ;;
+        [nN] | [nN][oO])
+            echo "You answered no. Keeping all files."
+            break
+            ;;
+        *)
+            echo "Invalid input" >&2
+    esac
 }
 
 
@@ -273,6 +305,7 @@ run_simulation () {
         check_if_done                           #check if the best K has been found
         if [[ $RES -eq 1 ]]                     #stop search is K is found
         then
+            ROUTE+=(pull_${DOMAIN}${i}_$BEST_K)
             local FINAL_TEXT="The optimal force constant has been found"
             echo "$FINAL_TEXT"
             echo "K=$BEST_K"
