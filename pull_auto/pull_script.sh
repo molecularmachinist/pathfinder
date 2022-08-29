@@ -29,6 +29,18 @@ do
     read -p "Enter domain name (uppercase abbreviation (the same as in the index groups), for example TK, JM): " DOMAIN_NAME
     DOMAIN_NAMES+=$DOMAIN_NAME
     read -p "Push (together) or pull (apart)? Answer push/pull " DIRECTION
+    case "$DIRECTION" in
+            [Pp][Uu][Ll][lL]
+                echo "You answered pull."
+                SIGN='+'
+                ;;
+            [pP][Uu][sS][hH]
+                echo "You answered push."
+                SIGN='-'
+                ;;
+            *)
+                echo "Invalid input" >&2
+        esac
     read -p "What is the target distance? Enter in nm: " TARGET
     gmx_mpi distance -f $GRO_FILE -s $GRO_FILE -n $INDEX_FILE -oav distance.xvg -select "com of group ${DOMAIN_NAME}1 plus com of group ${DOMAIN_NAME}2"
     GET_LINE=$(sed '25q;d' distance.xvg)                                                                        
@@ -69,8 +81,8 @@ run_pull () {
 
     sed -i '$d' pull_$DOMAIN.mdp                                                        #delete last two lines of mdp file (pull_coord_init and K lines)
     sed -i '$d' pull_$DOMAIN.mdp
-    echo "pull_coord1_k = $K" >> pull_$DOMAIN.mdp                                       #set K in mdp                                                                                               #get starting distance
-    INIT=$(expr "${STARTS[${DOMAIN}]} + 1.5" | bc -l)                                   #pull 1nm (+0.5 for margin)
+    echo "pull_coord1_k = ${SIGN}$K" >> pull_$DOMAIN.mdp                                       #set K in mdp                                                                                               #get starting distance
+    INIT=$(expr "${STARTS[${DOMAIN}]} $SIGN 1.5" | bc -l)                               #pull/push 1nm (+0.5 for margin)
     echo "pull_coord1_init = $INIT" >> pull_$DOMAIN.mdp                                 #set init distance in mdp
     gmx_mpi grompp -f pull_$DOMAIN.mdp -c $GRO_FILE -p topol.top -r $GRO_FILE -n $INDEX_FILE -o pull_${DOMAIN}${ITERATION}_$K.tpr -maxwarn 1
     sbatch --output=pull_${DOMAIN}${ITERATION}_$K.txt --job-name=pull_${DOMAIN}${ITERATION}_$K pull_$DOMAIN.sh
@@ -93,13 +105,13 @@ status () {
     GET_LINE=$(sed '18q;d' pull_${DOMAIN}${ITERATION}_${K}x.xvg)             #get first distance (18th line of xvg file)
     FIRST=${GET_LINE: -7}                           
     LAST=`tail -n 1 pull_${DOMAIN}${ITERATION}_${K}x.xvg | awk '{print $2}'` #get last distance      awk print $2 means print second column and $2 is not referencing to K (second input parameter)
-    DX=$(expr "$LAST - $FIRST" | bc -l)                 #difference in x
-    if [[ $(echo "$DX>=0.9" | bc -l) -eq "1" ]]                 #if distance between the domains is >= 0.9
+    DX=$(expr "$LAST - $FIRST" | bc -l)                                      #difference in x
+    if [[ $(echo "${DX#-}>=0.9" | bc -l) -eq "1" ]]                          #if difference in starting and ending distance is >= 0.9
     then
-        STATUS_ARRAY[$INDEX]=1                              #1 = successful
+        STATUS_ARRAY[$INDEX]=1                                              #1 = successful
         echo "Status for $DOMAIN domain iteration $ITERATION K=$K is successful"
     else
-        STATUS_ARRAY[$INDEX]=0                              #0 = unsuccessful
+        STATUS_ARRAY[$INDEX]=0                                              #0 = unsuccessful
         echo "Status for $DOMAIN domain iteration $ITERATION K=$K is unsuccessful"
     fi
 }
