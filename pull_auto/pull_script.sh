@@ -30,21 +30,20 @@ do
     DOMAIN_NAMES+=$DOMAIN_NAME
     read -p "Push (together) or pull (apart)? Answer push/pull " DIRECTION
     case "$DIRECTION" in
-            [Pp][Uu][Ll][lL]
-                echo "You answered pull."
-                SIGN='+'
-                ;;
-            [pP][Uu][sS][hH]
-                echo "You answered push."
-                SIGN='-'
-                ;;
-            *)
-                echo "Invalid input" >&2
-        esac
-    read -p "What is the target distance? Enter in nm: " TARGET
-    gmx_mpi distance -f $GRO_FILE -s $GRO_FILE -n $INDEX_FILE -oav distance.xvg -select "com of group ${DOMAIN_NAME}1 plus com of group ${DOMAIN_NAME}2"
-    GET_LINE=$(sed '25q;d' distance.xvg)                                                                        
-    STARTS+=( ["${DOMAIN_NAME}"]=${GET_LINE: -5} )
+        [Pp][Uu][Ll][lL])
+            echo "You answered pull."
+            SIGN='+'
+            ;;
+        [pP][Uu][sS][hH])
+            echo "You answered push."
+            SIGN='-'
+            ;;
+        *)
+            echo "Invalid input" >&2
+    esac
+    read -p "What is the starting distance? Enter in nm: " START
+    read -p "What is the target distance? Enter in nm: " TARGET                                                                       
+    STARTS+=( ["${DOMAIN_NAME}"]=${START} )
     ITERATIONS+=( ["${DOMAIN_NAME}"]=$(expr "$TARGET-${STARTS[${DOMAIN_NAME}]}" | bc -l) )
 done
 
@@ -81,13 +80,13 @@ run_pull () {
 
     sed -i '$d' pull_$DOMAIN.mdp                                                        #delete last two lines of mdp file (pull_coord_init and K lines)
     sed -i '$d' pull_$DOMAIN.mdp
-    echo "pull_coord1_k = ${SIGN}$K" >> pull_$DOMAIN.mdp                                       #set K in mdp                                                                                               #get starting distance
+    echo "pull_coord1_k = ${SIGN}$K" >> pull_$DOMAIN.mdp                                #set K in mdp                                                                                               #get starting distance
     INIT=$(expr "${STARTS[${DOMAIN}]} $SIGN 1.5" | bc -l)                               #pull/push 1nm (+0.5 for margin)
     echo "pull_coord1_init = $INIT" >> pull_$DOMAIN.mdp                                 #set init distance in mdp
     gmx_mpi grompp -f pull_$DOMAIN.mdp -c $GRO_FILE -p topol.top -r $GRO_FILE -n $INDEX_FILE -o pull_${DOMAIN}${ITERATION}_$K.tpr -maxwarn 1
-    sbatch --output=pull_${DOMAIN}${ITERATION}_$K.txt --job-name=pull_${DOMAIN}${ITERATION}_$K pull_$DOMAIN.sh
-    GRO_FILE=pull_${DOMAIN}${ITERATION}_$K                                                                                                                               
-    echo "Pulling $DOMAIN domains (iteration $ITERATION) with K=$K"
+    sed -i '$d' pull_$DOMAIN.sh
+    echo "srun gmx_mpi mdrun -v -deffnm pull_${DOMAIN}${ITERATION}_$K -pf pull_${DOMAIN}${ITERATION}_${K}f.xvg -px pull_${DOMAIN}${ITERATION}_${K}x.xvg" >> pull_$DOMAIN.sh
+    sbatch --output=pull_${DOMAIN}${ITERATION}_$K.txt --job-name=pull_${DOMAIN}${ITERATION}_$K pull_$DOMAIN.sh                                                                                                                              
 }
 
 
@@ -306,6 +305,7 @@ run_simulation () {
         do
             run_pull $i $K_ARRAY[$j] $DOMAIN
         done
+        echo "Running 5 pulling simulations for $DOMAIN domains (iteration $ITERATION) with K values: ${K_ARRAY[*]}"
 
         sleep 15h                           #wait for batch jobs to finish (should take about 14h)
 
