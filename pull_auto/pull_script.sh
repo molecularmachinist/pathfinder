@@ -16,36 +16,69 @@ declare -A ITERATIONS
 #Array for keeping track of the successful route of simulations
 declare -A ROUTE
 
+read_config () {
+    . input.config
+    
+    # case "$DIRECTION" in
+    #     [Pp][Uu][Ll][lL])
+    #         SIGN='+'
+    #         ;;
+    #     [pP][Uu][sS][hH])
+    #         SIGN='-'
+    #         ;;
+    #     *)
+    #         echo "Invalid input" >&2
+    # esac
+
+    echo "Starting gro file=${GRO_FILE}"
+    echo "Number of domains=${NUM_OF_DOMAINS}"
+
+    i=0
+    for d in "${DOMAIN_NAMES[@]}"
+    do
+        echo "Info for ${d} domain: "
+        DIRECTIONS[$d]=${DIRECTIONS[$i]}
+        echo "Direction: ${DIRECTIONS[$d]}"
+        STARTS[$d]=${STARTS[$i]}
+        TARGETS[$d]=${TARGETS[$i]}
+        K_MAX[$d]=${K_MAX[$i]}
+        ITERATIONS+=( ["$d"]=$(expr "${TARGETS[$d]}-${STARTS[$d]}" | bc -l) )
+        i+=1
+    done
+}
+
+read_config
+
 
 #Ask the user for the index file, the first gro file (gro file of the first domain/molecule to be pulled) 
 #and how many domains/molecules are we working with
-read -p "Enter the name of the index file with filename extension (e.g. index.ndx): " INDEX_FILE
-read -p "Enter the name of the gro file to start simulations with, with filename extensions: " GRO_FILE
-read -p "How many domains?" NUM_OF_DOMAINS
+# read -p "Enter the name of the index file with filename extension (e.g. index.ndx): " INDEX_FILE
+# read -p "Enter the name of the gro file to start simulations with, with filename extensions: " GRO_FILE
+# read -p "How many domains?" NUM_OF_DOMAINS
 
-for ((i=1; i<=$NUM_OF_DOMAINS; i++))
-do
-    echo "Enter domains in the order you want them to be pushed/pulled"
-    read -p "Enter domain name (uppercase abbreviation (the same as in the index groups), for example TK, JM): " DOMAIN_NAME
-    DOMAIN_NAMES+=$DOMAIN_NAME
-    read -p "Push (together) or pull (apart)? Answer push/pull " DIRECTION
-    case "$DIRECTION" in
-        [Pp][Uu][Ll][lL])
-            echo "You answered pull."
-            SIGN='+'
-            ;;
-        [pP][Uu][sS][hH])
-            echo "You answered push."
-            SIGN='-'
-            ;;
-        *)
-            echo "Invalid input" >&2
-    esac
-    read -p "What is the starting distance? Enter in nm: " START
-    read -p "What is the target distance? Enter in nm: " TARGET                                                                       
-    STARTS+=( ["${DOMAIN_NAME}"]=${START} )
-    ITERATIONS+=( ["${DOMAIN_NAME}"]=$(expr "$TARGET-${STARTS[${DOMAIN_NAME}]}" | bc -l) )
-done
+# for ((i=1; i<=$NUM_OF_DOMAINS; i++))
+# do
+#     echo "Enter domains in the order you want them to be pushed/pulled"
+#     read -p "Enter domain name (uppercase abbreviation (the same as in the index groups), for example TK, JM): " DOMAIN_NAME
+#     DOMAIN_NAMES+=$DOMAIN_NAME
+#     read -p "Push (together) or pull (apart)? Answer push/pull " DIRECTION
+#     case "$DIRECTION" in
+#         [Pp][Uu][Ll][lL])
+#             echo "You answered pull."
+#             SIGN='+'
+#             ;;
+#         [pP][Uu][sS][hH])
+#             echo "You answered push."
+#             SIGN='-'
+#             ;;
+#         *)
+#             echo "Invalid input" >&2
+#     esac
+#     read -p "What is the starting distance? Enter in nm: " START
+#     read -p "What is the target distance? Enter in nm: " TARGET                                                                       
+#     STARTS+=( ["${DOMAIN_NAME}"]=${START} )
+#     ITERATIONS+=( ["${DOMAIN_NAME}"]=$(expr "$TARGET-${STARTS[${DOMAIN_NAME}]}" | bc -l) )
+# done
 
 K_MIN_ORIG=5                            #some starting values for K
 K_MAX_ORIG=100
