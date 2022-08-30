@@ -220,6 +220,8 @@ run_eq () {
     echo "pull_coord1_init = $RANGE_HIGH" >> pull_eq.mdp
     echo "pull_coord2_init = $RANGE_LOW" >> pull_eq.mdp
     gmx_mpi grompp -f pull_eq.mdp -o pull_eq_${DOMAIN}${ITERATION}.tpr -c $GRO_FILE -r $GRO_FILE -p topol.top -n $INDEX_FILE -maxwarn 1
+    sed -i '$d' pull_eq.sh
+    echo "srun gmx_mpi mdrun -v -deffnm pull_eq_${DOMAIN}${ITERATION} -pf pull_eq_${DOMAIN}${ITERATION}f.xvg -px pull_eq_${DOMAIN}${ITERATION}x.xvg" >> pull_eq.sh
     sbatch --output=pull_eq_${DOMAIN}${ITERATION}.txt --job-name=pull_eq_${DOMAIN}${ITERATION} pull_eq.sh
     echo "Running pull_${DOMAIN}${ITERATION} with range: $RANGE_LOW-$RANGE_HIGH"
                                                
