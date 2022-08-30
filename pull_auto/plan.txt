@@ -30,12 +30,11 @@ Outputs:
 TO DO:
 -eq success is determined by rmsd and wall time
     -how to analyze slope of rmsd end point
+    -probably must use python e.g. numpy 
+    -make separate python file for analysis
 -function for removing unnecessary files
--option to input pdb file or gro file
--in run_eq echo mdrun and remember to remove line before 
+-option to input pdb file or gro file 
 -bash daemon for waiting
--input config file
--error control for config file
 -log file
 -make a file system with folders and move between them
 -rsync files, warning for large files
@@ -45,6 +44,3 @@ Errors:
 
 Questions:
 -is exit 1 best way to end program?
--will the pull_script also be a sbatch job but how will the user then input stuff?
-but if is run from command line, the program cant be exited and will run in terminal
--how to input multiple domains in config file? maybe separate with a comma?

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#log=log_file.txt
+#mkdir outputs
+
 module load gromacs
 
 #Take K_MIN and K_MAX as variables from user input
@@ -101,40 +104,11 @@ read_config () {
     done
 
     echo "Check that the inputs are correct."
+    sleep 30s
 }
 
 read_config
 
-
-#Ask the user for the index file, the first gro file (gro file of the first domain/molecule to be pulled) 
-#and how many domains/molecules are we working with
-# read -p "Enter the name of the index file with filename extension (e.g. index.ndx): " INDEX_FILE
-# read -p "Enter the name of the gro file to start simulations with, with filename extensions: " GRO_FILE
-# read -p "How many domains?" NUM_OF_DOMAINS
-
-# for ((i=1; i<=$NUM_OF_DOMAINS; i++))
-# do
-#     echo "Enter domains in the order you want them to be pushed/pulled"
-#     read -p "Enter domain name (uppercase abbreviation (the same as in the index groups), for example TK, JM): " DOMAIN_NAME
-#     DOMAIN_NAMES+=$DOMAIN_NAME
-#     read -p "Push (together) or pull (apart)? Answer push/pull " DIRECTION
-#     case "$DIRECTION" in
-#         [Pp][Uu][Ll][lL])
-#             echo "You answered pull."
-#             SIGN='+'
-#             ;;
-#         [pP][Uu][sS][hH])
-#             echo "You answered push."
-#             SIGN='-'
-#             ;;
-#         *)
-#             echo "Invalid input" >&2
-#     esac
-#     read -p "What is the starting distance? Enter in nm: " START
-#     read -p "What is the target distance? Enter in nm: " TARGET                                                                       
-#     STARTS+=( ["${DOMAIN_NAME}"]=${START} )
-#     ITERATIONS+=( ["${DOMAIN_NAME}"]=$(expr "$TARGET-${STARTS[${DOMAIN_NAME}]}" | bc -l) )
-# done
 
 K_MIN_ORIG=5                            #some starting values for K
 K_MAX_ORIG=100
