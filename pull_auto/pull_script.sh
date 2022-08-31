@@ -75,7 +75,6 @@ read_config () {
         echo "Direction: ${DIRECTIONS[$d]}"
 
         STARTS[$d]=${STARTS[$i]}
-
         if [[ ${#STARTS[@]} -ne $NUM_OF_DOMAINS ]]
         then
             echo "ERROR: The number of STARTING DISTANCES does not match the number of domains."
@@ -83,7 +82,6 @@ read_config () {
         fi
 
         TARGETS[$d]=${TARGETS[$i]}
-
         if [[ ${#TARGETS[@]} -ne $NUM_OF_DOMAINS ]]
         then
             echo "ERROR: The number of TARGET DISTANCES does not match the number of domains."
@@ -91,7 +89,6 @@ read_config () {
         fi
 
         K_MAX[$d]=${K_MAX[$i]}
-
         if [[ ${#K_MAX[@]} -ne $NUM_OF_DOMAINS ]]
         then
             echo "ERROR: The number of MAXIMUM FORCE CONSTANTS K does not match the number of domains."
@@ -302,6 +299,15 @@ run_eq () {
     then
         echo "The equilibration wasn't successful. The structure isn't equilibrated enough."
         echo "Please increase equilibration wall time."
+        read -p "Please give a longer wall time for equilibration. New time: " TIME       
+        #Some input error handling here
+        #Make sure new time is an integer
+        #Make sure new time is longer than old time
+        #slurm time should also be increased 
+        EQ_TIME=$TIME
+        run_eq $1 $2
+    else
+        echo "The equilibration was successful."
     fi
 }
 
