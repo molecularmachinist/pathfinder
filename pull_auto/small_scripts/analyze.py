@@ -15,5 +15,5 @@ x,y = np.loadtxt(file,comments=["@","#"],unpack=True)
 n=math.ceil(0.8*len(x))
 x=x[-n:]
 y=y[-n:]
-slope=5
+slope=linregress(x,y)
 print(slope)
