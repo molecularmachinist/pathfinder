@@ -295,13 +295,14 @@ run_eq () {
 
     gmx_mpi rms -s pull_eq_${DOMAIN}${ITERATION}.tpr -f pull_eq_${DOMAIN}${ITERATION}.trr -o pull_eq_${DOMAIN}${ITERATION}_rmsd.xvg -tu ns
     echo "backbone backbone"
-    #analyze rmsd
-    #take slope at end of rmsd graph
-    #if close to 0, is successful
-    #k=dy/dx
-    #one option is to take the last few values of rmsd.xvg and calc slope
-    #if 0 +- ??? is successful
-    #slope needs to be somehow averaged, only a few values wont be enough
+
+    FILE="pull_eq_${DOMAIN}${ITERATION}_rmsd.xvg"
+    RESULT=$(/usr/bin/env python3 analyze.py $FILE)      #0 means fail, the slope wasnt close enough to 0
+    if [[ $RESULT -eq 0 ]]                               #1 means success, the slope was close enough to 0  
+    then
+        echo "The equilibration wasn't successful. The structure isn't equilibrated enough."
+        echo "Please increase equilibration wall time."
+    fi
 }
 
 #Ask user if they wish to continue simulation with the next iteration

@@ -28,10 +28,10 @@ Outputs:
 -movie of concat trajectories
 
 TO DO:
+-study if you should convert all code to python, would that be easier
 -eq success is determined by rmsd and wall time
-    -how to analyze slope of rmsd end point
-    -probably must use python e.g. numpy 
-    -make separate python file for analysis
+    -how to let the user increase wall time in case of failure
+    -without running everything again
 -function for removing unnecessary files
 -option to input pdb file or gro file 
 -bash daemon for waiting
