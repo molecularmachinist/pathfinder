@@ -31,6 +31,7 @@ TO DO:
 -study if you should convert all code to python, would that be easier
     -could start with converting some functions first:
     -maybe status, check_if_done, new_K and other math needing functions
+    -gromacs has a python package
 -eq success is determined by rmsd and wall time
     -error handling for new eq_time 
 -function for removing unnecessary files
@@ -42,6 +43,7 @@ TO DO:
 (-comments, README file, testing)
 
 Errors:
+-something wrong with python on my computer, wont run analyze.py, scipy not found
 
 Questions:
 -is exit 1 best way to end program?
