@@ -75,7 +75,6 @@ read_config () {
         echo "Direction: ${DIRECTIONS[$d]}"
 
         STARTS[$d]=${STARTS[$i]}
-
         if [[ ${#STARTS[@]} -ne $NUM_OF_DOMAINS ]]
         then
             echo "ERROR: The number of STARTING DISTANCES does not match the number of domains."
@@ -83,7 +82,6 @@ read_config () {
         fi
 
         TARGETS[$d]=${TARGETS[$i]}
-
         if [[ ${#TARGETS[@]} -ne $NUM_OF_DOMAINS ]]
         then
             echo "ERROR: The number of TARGET DISTANCES does not match the number of domains."
@@ -91,7 +89,6 @@ read_config () {
         fi
 
         K_MAX[$d]=${K_MAX[$i]}
-
         if [[ ${#K_MAX[@]} -ne $NUM_OF_DOMAINS ]]
         then
             echo "ERROR: The number of MAXIMUM FORCE CONSTANTS K does not match the number of domains."
@@ -295,13 +292,23 @@ run_eq () {
 
     gmx_mpi rms -s pull_eq_${DOMAIN}${ITERATION}.tpr -f pull_eq_${DOMAIN}${ITERATION}.trr -o pull_eq_${DOMAIN}${ITERATION}_rmsd.xvg -tu ns
     echo "backbone backbone"
-    #analyze rmsd
-    #take slope at end of rmsd graph
-    #if close to 0, is successful
-    #k=dy/dx
-    #one option is to take the last few values of rmsd.xvg and calc slope
-    #if 0 +- ??? is successful
-    #slope needs to be somehow averaged, only a few values wont be enough
+
+    FILE="pull_eq_${DOMAIN}${ITERATION}_rmsd.xvg"
+    RESULT=$(/usr/bin/env python3 analyze.py $FILE)      #0 means fail, the slope wasnt close enough to 0
+    if [[ $RESULT -eq 0 ]]                               #1 means success, the slope was close enough to 0  
+    then
+        echo "The equilibration wasn't successful. The structure isn't equilibrated enough."
+        echo "Please increase equilibration wall time."
+        read -p "Please give a longer wall time for equilibration. New time: " TIME       
+        #Some input error handling here
+        #Make sure new time is an integer
+        #Make sure new time is longer than old time
+        #slurm time should also be increased 
+        EQ_TIME=$TIME
+        run_eq $1 $2
+    else
+        echo "The equilibration was successful."
+    fi
 }
 
 #Ask user if they wish to continue simulation with the next iteration
