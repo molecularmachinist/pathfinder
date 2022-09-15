@@ -1,6 +1,7 @@
 PATHFINDER
 This is the plan for coding the pathfinder tool.
 
+cd pathfinder/pull_auto/small_scripts
 
 Scripts/functions:
 -each output has own MDAnalysis function
@@ -29,11 +30,13 @@ Outputs:
 
 TO DO:
 -study if you should convert all code to python, would that be easier
+    -jupyter notebooks might be the answer to everything
     -could start with converting some functions first:
     -maybe status, check_if_done, new_K and other math needing functions
     -gromacs has a python package
 -eq success is determined by rmsd and wall time
     -error handling for new eq_time 
+    -bash doesnt recognize integers so maybe this should be done with python??
 -function for removing unnecessary files
 -option to input pdb file or gro file 
 -bash daemon for waiting
@@ -42,8 +45,14 @@ TO DO:
 -rsync files, warning for large files
 (-comments, README file, testing)
 
+IMPORTANT FOR PYTHON FILE:
+-use anaconda prompt/terminal
+-use test environment
+-run with python analyze.py
+
+-run eq and python etc work with wsl with conda
+
 Errors:
--something wrong with python on my computer, wont run analyze.py, scipy not found
 
 Questions:
 -is exit 1 best way to end program?

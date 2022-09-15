@@ -4,10 +4,10 @@ run_eq() {
     #gmx_mpi rms -s pull_eq_${DOMAIN}${ITERATION}.tpr -f pull_eq_${DOMAIN}${ITERATION}.trr -o pull_eq_${DOMAIN}${ITERATION}_rmsd.xvg -tu ns
     #echo "backbone backbone"
 
+    DOMAIN=TK
     FILE="rmsd.xvg"
-    echo "HI"
-    #RESULT=$(/usr/bin/env python3 analyze.py $FILE)      #0 means fail, the slope wasnt close enough to 0
-    RESULT=0
+    RESULT=$(/usr/bin/env python3 analyze.py $FILE $DOMAIN)      #0 means fail, the slope wasnt close enough to 0
+    echo "RESULT: $RESULT" 
     if [[ $RESULT -eq 0 ]]                               #1 means success, the slope was close enough to 0  
     then
         echo "The equilibration wasn't successful. The structure isn't equilibrated enough."
@@ -23,3 +23,5 @@ run_eq() {
         echo "The equilibration was successful."
     fi
 }
+
+run_eq
