@@ -285,10 +285,6 @@ run_eq () {
     sbatch --output=pull_eq_${DOMAIN}${ITERATION}.txt --job-name=pull_eq_${DOMAIN}${ITERATION} pull_eq.sh
     echo "Running pull_${DOMAIN}${ITERATION} with range: $RANGE_LOW-$RANGE_HIGH"
                                                
-    #check if equilibration was successful
-        #check rmsd
-    #what to do if not successful
-        #increase wall time 
 
     gmx_mpi rms -s pull_eq_${DOMAIN}${ITERATION}.tpr -f pull_eq_${DOMAIN}${ITERATION}.trr -o pull_eq_${DOMAIN}${ITERATION}_rmsd.xvg -tu ns
     echo "backbone backbone"

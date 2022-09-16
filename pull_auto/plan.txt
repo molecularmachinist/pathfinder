@@ -30,13 +30,16 @@ Outputs:
 
 TO DO:
 -study if you should convert all code to python, would that be easier
+    -subprocesses work for running bash commands from inside python
     -jupyter notebooks might be the answer to everything
     -could start with converting some functions first:
-    -maybe status, check_if_done, new_K and other math needing functions
+        -maybe status, check_if_done, new_K and other math needing functions
     -gromacs has a python package
--eq success is determined by rmsd and wall time
-    -error handling for new eq_time 
-    -bash doesnt recognize integers so maybe this should be done with python??
+-run_eq:
+    -how to set up longer equilibration
+    -time needs to be changed in mdp file
+        -code needs to increase nsteps in mdp file
+        -and slurm time 
 -function for removing unnecessary files
 -option to input pdb file or gro file 
 -bash daemon for waiting
@@ -51,6 +54,7 @@ IMPORTANT FOR PYTHON FILE:
 -run with python analyze.py
 
 -run eq and python etc work with wsl with conda
+-run conda activate to activate base and run run_eq.sh normally
 
 Errors:
 
