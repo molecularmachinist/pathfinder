@@ -1,7 +1,7 @@
 #!/bin/bash
-
-#log=log_file.txt
-#mkdir outputs
+LOG_LOCATION=/mnt/c/Users/vanil/Documents/HY/pull_script.sh/pathfinder/pull_auto
+exec > >(tee -a $LOG_LOCATION/output.txt)
+exec 2>&1
 
 module load gromacs
 
@@ -290,20 +290,14 @@ run_eq () {
     echo "backbone backbone"
 
     FILE="pull_eq_${DOMAIN}${ITERATION}_rmsd.xvg"
-    RESULT=$(/usr/bin/env python3 analyze.py $FILE)      #0 means fail, the slope wasnt close enough to 0
-    if [[ $RESULT -eq 0 ]]                               #1 means success, the slope was close enough to 0  
+    RESULT=$(/usr/bin/env python3 analyze.py $FILE $DOMAIN)      #0 means fail, the slope wasnt close enough to 0
+    echo "RESULT: $RESULT" 
+    if [[ $RESULT -eq 0 ]]
     then
-        echo "The equilibration wasn't successful. The structure isn't equilibrated enough."
-        echo "Please increase equilibration wall time."
-        read -p "Please give a longer wall time for equilibration. New time: " TIME       
-        #Some input error handling here
-        #Make sure new time is an integer
-        #Make sure new time is longer than old time
-        #slurm time should also be increased 
-        EQ_TIME=$TIME
-        run_eq $1 $2
+        echo "Running equilibration again with longer wall time"
+        run_eq $1 $2                #Use the same domain and iteration
     else
-        echo "The equilibration was successful."
+        echo "Equilibration was successful"
     fi
 }
 
@@ -373,7 +367,7 @@ run_simulation () {
         do
             run_pull $i $K_ARRAY[$j] $DOMAIN
         done
-        echo "Running 5 pulling simulations for $DOMAIN domains (iteration $ITERATION) with K values: ${K_ARRAY[*]}"
+        echo "Running 5 pulling simulations for $DOMAIN domains (iteration $i) with K values: ${K_ARRAY[*]}"
 
         sleep 15h                           #wait for batch jobs to finish (should take about 14h)
 
@@ -386,7 +380,10 @@ run_simulation () {
         if [[ $RES -eq 1 ]]                     #stop search is K is found
         then
             ROUTE+=(pull_${DOMAIN}${i}_$BEST_K)
-            local FINAL_TEXT="The optimal force constant has been found"
+            PULLF="pull_${DOMAIN}${i}_${BEST_K}f.xvg"
+            PULLX="pull_${DOMAIN}${i}_${BEST_K}x.xvg"
+            /usr/bin/env python3 pull_plot.py $PULLX $PULLF
+            local FINAL_TEXT="The optimal force constant for ${DOMAIN} domain (iteration: $i) has been found"
             echo "$FINAL_TEXT"
             echo "K=$BEST_K"
         else

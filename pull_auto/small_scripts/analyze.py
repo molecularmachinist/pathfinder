@@ -16,18 +16,18 @@ def bash_command(cmd):
 #subprocess.run(["ls"])
 #bash_command('echo "backbone"')
 
-#file=sys.argv[1]
-#domain=sys.argv[2]
-file="rmsd.xvg"
-domain="TK"
+file=sys.argv[1]
+domain=sys.argv[2]
+#file="rmsd.xvg"
+#domain="TK"
+
 x,y = np.loadtxt(file,comments=["@","#"],unpack=True)
 n=math.ceil(0.8*len(x))
 x=x[-n:]
 y=y[-n:]
 slope=linregress(x,y).slope
-slope=float('{:f}'.format(slope))
-slope=1             #REMOVE THIS LINE   
-print("Slope:", slope)
+slope=float('{:f}'.format(slope))  
+#print("Slope:", slope)         #Write slope into output file
 if slope < 0.25 and slope > -0.25:
     res=1
 else:
@@ -41,6 +41,7 @@ ax.set_xlabel("Time (ns)")
 ax.set_ylabel("RMSD (Å)")
 ax.set_title("RMSD: Equilibration of {} domain".format(domain))
 figure.tight_layout()
+plt.savefig('../outputs/rmsd.png')
 plt.show()
 if res == 0:
     print("The equilibration wasn't successful. The structure isn't equilibrated enough.")
@@ -57,5 +58,7 @@ if res == 0:
     bash_command("sed -i '$d' pull_eq.mdp")               #remove nsteps from mdp file
     with open("pull_eq.mdp", "a") as f:
         f.write("nsteps          = ", steps)
+    print(0)
 else:
-    print("The equilibration was successful.")
+    #print("The equilibration was successful.")
+    print(1)
