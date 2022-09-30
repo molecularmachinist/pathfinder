@@ -12,6 +12,14 @@ read_config () {
 
     echo "Starting gro/pdb file=${GRO_FILE}"
 
+    if [[ $GRO_FILE == *.pdb ]]
+    then
+        echo "Structure file is in pdb format."
+        echo "Converting pdb to gro file."
+        local prefix=${GRO_FILE::-4}
+        gmx_mpi pdb2gmx -f ${GRO_FILE} -o ${prefix}.gro -water tip3p -ignh -his
+    fi
+
     if [[ $INDEX_FILE == *.ndx ]]
     then
         echo "Index file is in correct format"

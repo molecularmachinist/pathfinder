@@ -30,7 +30,7 @@ Outputs:
 
 Work in progress: 
 -LEARN: daemonize process i.e. make script not run on the terminal, but in the background
--plots for pullx and pullf
+-what to do if none of the 5 K's work?
 
 TO DO:
 -study if you should convert all code to python, would that be easier
@@ -44,11 +44,11 @@ TO DO:
         -code needs to increase nsteps in mdp file DONE
         -and slurm time (this is more difficult)
 -function for removing unnecessary files
--option to input pdb file or gro file 
 -bash daemon for waiting
 -outputs such as plots, etc.
 -make a file system with folders and move between them
 -rsync files, warning for large files
+-documentation
 (-comments, README file, testing)
 
 IMPORTANT FOR PYTHON FILE:
@@ -63,3 +63,6 @@ Errors:
 
 Questions:
 -is exit 1 best way to end program?
+-if the user inputs pdb file, they need to also input info for
+pdb2gmx, so wouldnt it just be earier to force the user to convert it 
+themself?

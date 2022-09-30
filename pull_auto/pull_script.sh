@@ -29,6 +29,7 @@ read_config () {
 
     echo "Starting gro/pdb file=${GRO_FILE}"
 
+
     if [[ $INDEX_FILE == *.ndx ]]
     then
         echo "Index file is in correct format"
@@ -175,66 +176,89 @@ status () {
     fi
 }
 
-#Function for determining new K
-#Assumes the STATUS_ARRAY has 3 values
-new_K_3 () {
-    if [[ STATUS_ARRAY[0] -eq 1 ]]             #if min K was successful
+#Function for determining an array of new K values
+new_K () {
+    if [[ ${#STATUS_ARRAY[@]} -eq 3 ]]
     then
-        echo "K_MIN=${K_ARRAY[0]} was successful"
-        break
-    elif [[ STATUS_ARRAY[1] -eq 1 ]]           #if middle K was successful
-    then
-        echo "K_MID=${K_ARRAY[1]} was successful"
-        K_MAX=$K_MID                           #previous middle value is now max value
-        K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))       #new middle value is between old mid and min
-        K_MID=$(( (($K_MID+2)/5)*5 ))          #rounded to the nearest multiple of 5
-        K_ARRAY=($K_MIN $K_MID $K_MAX)
-        declare -A STATUS_ARRAY
-        STATUS_ARRAY[0]=0
-        STATUS_ARRAY[1]=0
-        STATUS_ARRAY[2]=1
-    elif [[ STATUS_ARRAY[2] -eq 1 ]]           #if max K was successful
-    then
-        echo "K_MAX=${K_ARRAY[2]} was successful"
-        K_MIN=$K_MID                           #previous mid value is now min value
-        K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))      #new middle value is between max and old mid
-        K_MID=$(( (($K_MID+2)/5)*5 ))          #roundend to the nearest multiple of 5
-        K_ARRAY=($K_MIN $K_MID $K_MAX)
-        declare -A STATUS_ARRAY
-        STATUS_ARRAY[0]=0
-        STATUS_ARRAY[1]=0
-        STATUS_ARRAY[2]=1
-    fi
-    echo "New K_MID is $K_MID"
-    echo "New values of K are: ${K_ARRAY[*]}"
-}
-
-#New function for parallel version for determining a new K after running 5 pulling sims
-#Assumes the STATUS_ARRAY has 5 values
-new_K_5 () {                                               
-    for i in {0..4}
-    do
-        echo "Checking K=${K_ARRAY[$i]}"
-        if [[ ${STATUS_ARRAY[$i]} -eq 1 ]]
+        if [[ STATUS_ARRAY[0] -eq 1 ]]             #if min K was successful
         then
-            echo "K=${K_ARRAY[$i]} was successful"
-            K_MAX=${K_ARRAY[$i]}
-            local prev=$(( $i - 1 ))
-            K_MIN=${K_ARRAY[$prev]}
-            K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))
-            K_MID=$(( (($K_MID+2)/5)*5 ))
+            echo "K_MIN=${K_ARRAY[0]} was successful"
+            break
+        elif [[ STATUS_ARRAY[1] -eq 1 ]]           #if middle K was successful
+        then
+            echo "K_MID=${K_ARRAY[1]} was successful"
+            K_MAX=$K_MID                           #previous middle value is now max value
+            K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))       #new middle value is between old mid and min
+            K_MID=$(( (($K_MID+2)/5)*5 ))          #rounded to the nearest multiple of 5
+            K_ARRAY=($K_MIN $K_MID $K_MAX)
             declare -A STATUS_ARRAY
             STATUS_ARRAY[0]=0
             STATUS_ARRAY[1]=0
             STATUS_ARRAY[2]=1
+        elif [[ STATUS_ARRAY[2] -eq 1 ]]           #if max K was successful
+        then
+            echo "K_MAX=${K_ARRAY[2]} was successful"
+            K_MIN=$K_MID                           #previous mid value is now min value
+            K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))      #new middle value is between max and old mid
+            K_MID=$(( (($K_MID+2)/5)*5 ))          #roundend to the nearest multiple of 5
             K_ARRAY=($K_MIN $K_MID $K_MAX)
+            declare -A STATUS_ARRAY
+            STATUS_ARRAY[0]=0
+            STATUS_ARRAY[1]=0
+            STATUS_ARRAY[2]=1
+        fi
+        echo "New K_MID is $K_MID"
+        echo "New values of K are: ${K_ARRAY[*]}"
+    elif [[ ${#STATUS_ARRAY[@]} -eq 5 ]]
+    then
+        if [[ ${STATUS_ARRAY[4]} -eq 0 ]]       #If K_MAX was unsuccessful
+        then
+            echo "The largest K was unsuccessful. Let's double Kmax."
+            K_MAX=$((2*$K_MAX))
+            K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))
+            K_MID=$(( (($K_MID+2)/5)*5 ))
+            K2=$((($K_MID - $K_MIN)/2))
+            K2=$(( (($K2+2)/5)*5 ))
+            K4=$((($K_MAX - $K_MID)/2))
+            K4=$(( (($K4+2)/5)*5 ))
+            K4=$(( $K4+$K_MID ))
+            STATUS_ARRAY[0]=0
+            STATUS_ARRAY[1]=0
+            STATUS_ARRAY[2]=0
+            STATUS_ARRAY[3]=0
+            STATUS_ARRAY[4]=0
             echo "New values of K are: ${K_ARRAY[*]}"
             break
-        else
-            echo "K=${K_ARRAY[$i]} was not successful"
-        fi
-    done        
+        fi                                       
+        for i in {0..4}
+        do
+            echo "Checking K=${K_ARRAY[$i]}"
+            if [[ ${STATUS_ARRAY[$i]} -eq 1 ]]
+            then
+                echo "K=${K_ARRAY[$i]} was successful"
+                K_MAX=${K_ARRAY[$i]}
+                local prev=$(( $i - 1 ))
+                K_MIN=${K_ARRAY[$prev]}
+                K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))
+                K_MID=$(( (($K_MID+2)/5)*5 ))
+                declare -A STATUS_ARRAY
+                STATUS_ARRAY[0]=0
+                STATUS_ARRAY[1]=0
+                STATUS_ARRAY[2]=1
+                K_ARRAY=($K_MIN $K_MID $K_MAX)
+                echo "New values of K are: ${K_ARRAY[*]}"
+                break
+            else
+                echo "K=${K_ARRAY[$i]} was not successful"
+            fi
+        done
+    else
+        echo "Error in new_K. K_ARRAY length was 3 nor 5."
+        exit 1
+    fi
 }
+
+    
 
 #Function for checking if the best force constant is found
 check_if_done () {
@@ -377,7 +401,7 @@ run_simulation () {
         done
 
         check_if_done                           #check if the best K has been found
-        if [[ $RES -eq 1 ]]                     #stop search is K is found
+        if [[ $RES -eq 1 ]]                     #stop search is best K is found
         then
             ROUTE+=(pull_${DOMAIN}${i}_$BEST_K)
             PULLF="pull_${DOMAIN}${i}_${BEST_K}f.xvg"
@@ -387,7 +411,7 @@ run_simulation () {
             echo "$FINAL_TEXT"
             echo "K=$BEST_K"
         else
-            new_K_5                                   #continue searching for best K
+            new_K                         #continue searching for best K
         fi
 
         while [[ $RES -eq 0 ]]         #while K isn't found yet
@@ -403,7 +427,7 @@ run_simulation () {
                 echo "K=$FORCE_CONSTANT"
                 done
             else
-                new_K_3                                   #continue searching for best K
+                new_K                                   #continue searching for best K
             fi
         done
 
