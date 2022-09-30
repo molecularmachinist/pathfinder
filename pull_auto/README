@@ -1,0 +1,59 @@
+Pathfinder tool documentation
+Vanilja Hyppönen
+
+
+Functions:
+
+ask_continue
+Inputs: -
+Outputs: No output, but will either continue with the next iteration or exit the program.
+
+Ask user if they wish to continue the simulations with the next iteration or quit.
+Will be asked after each iteration after equilibration.
+
+check_if_done
+Inputs: -
+Outputs: RES (0 for fail, 1 for success)
+
+Function for checking if the best force constant is found. Best force constant means that the difference between the best K and the lower value of K is 5 (or less) and the simulation with the lower K failed. Therefore K_BEST is the smallest K possible that is 
+still able to pull/push the desired distance.
+
+cleanup
+Inputs: Yes/No interactive user input
+Outputs: -
+
+Function for cleaning up unnecessary files. Asks the user if they wish to remove files from earlier unsuccessful simulations. Cleanup is recommended. 
+
+new_K
+Inputs:
+Outputs:
+
+read_config
+Inputs:
+Outputs:
+
+run_eq
+Inputs:
+Outputs:
+
+run_pull
+Inputs:
+Outputs:
+
+run_simulation
+Inputs:
+Outputs:
+
+status
+Inputs:
+Outputs:
+
+
+
+
+
+
+
+
+
+

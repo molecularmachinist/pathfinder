@@ -46,6 +46,8 @@ TO DO:
 -function for removing unnecessary files
 -bash daemon for waiting
 -outputs such as plots, etc.
+-should new K always be 5, unless the range is so small that its not possible to get
+5 new values
 -make a file system with folders and move between them
 -rsync files, warning for large files
 -documentation
