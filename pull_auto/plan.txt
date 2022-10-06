@@ -30,7 +30,10 @@ Outputs:
 
 Work in progress: 
 -LEARN: daemonize process i.e. make script not run on the terminal, but in the background
+-new_K function: when to reduce from 5 K's to 3?
 -what to do if none of the 5 K's work?
+-documentation
+-testing
 
 TO DO:
 -study if you should convert all code to python, would that be easier

@@ -1,5 +1,5 @@
 #!/bin/bash
-LOG_LOCATION=/mnt/c/Users/vanil/Documents/HY/pull_script.sh/pathfinder/pull_auto
+LOG_LOCATION=/scratch/project_2006125/vanilja/pathfinder/testing
 exec > >(tee -a $LOG_LOCATION/output.txt)
 exec 2>&1
 
@@ -309,6 +309,8 @@ run_eq () {
     sbatch --output=pull_eq_${DOMAIN}${ITERATION}.txt --job-name=pull_eq_${DOMAIN}${ITERATION} pull_eq.sh
     echo "Running pull_${DOMAIN}${ITERATION} with range: $RANGE_LOW-$RANGE_HIGH"
                                                
+    #some waiting will need to happen here
+    #or new function for analyzing
 
     gmx_mpi rms -s pull_eq_${DOMAIN}${ITERATION}.tpr -f pull_eq_${DOMAIN}${ITERATION}.trr -o pull_eq_${DOMAIN}${ITERATION}_rmsd.xvg -tu ns
     echo "backbone backbone"
@@ -421,6 +423,10 @@ run_simulation () {
             check_if_done
             if [[ $RES -eq 1 ]]
             then
+                ROUTE+=(pull_${DOMAIN}${i}_$BEST_K)
+                PULLF="pull_${DOMAIN}${i}_${BEST_K}f.xvg"
+                PULLX="pull_${DOMAIN}${i}_${BEST_K}x.xvg"
+                /usr/bin/env python3 pull_plot.py $PULLX $PULLF
                 local FINAL_TEXT="The optimal force constant has been found"
                 echo "$FINAL_TEXT"
                 FORCE_CONSTANT=$K_MID
