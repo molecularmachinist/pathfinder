@@ -129,8 +129,29 @@ STATUS_ARRAY[3]=0
 STATUS_ARRAY[4]=0
 
 
+#Function for writing a batch script (CSC Mahti)
+#Takes file name as input
+write_batch () {
+    local FILE=$1                
+
+    touch ${FILE}.sh                                
+    echo '#!/bin/bash' >> $FILE.sh
+    echo "#SBATCH --output=$FILE.txt" >> $FILE.sh
+    echo "#SBATCH --time=${TIME}" >> $FILE.sh
+    echo "#SBATCH --job-name=$FILE" >> $FILE.sh
+    echo "#SBATCH --nodes=${NODES}" >> $FILE.sh
+    echo "#SBATCH --ntasks-per-node=${NTASKS-PER-NODE}" >> $FILE.sh
+    echo "#SBATCH --mem=${MEMORY}" >> $FILE.sh
+    echo "#SBATCH --account=${ACCOUNT}" >> $FILE.sh
+    echo "#SBATCH --partition=${PARTITION}" >> $FILE.sh
+
+    echo "srun gmx_mpi mdrun -v -deffnm $FILE -pf ${FILE}f.xvg -px ${FILE}x.xvg" >> $FILE.sh
+    
+}
+
+
 #Function for setting up the pull sim (TK, JM or TM) and running it
-#Takes index and K as input
+#Takes iteration, domain and K as input
 #$1=iteration
 #$2=K
 #$3=DOMAIN
@@ -138,6 +159,7 @@ run_pull () {
     local ITERATION=$1
     local K=$2
     local DOMAIN=$3
+    local FILE=pull_${DOMAIN}${ITERATION}_$K
 
     sed -i '$d' pull_$DOMAIN.mdp                                                        #delete last two lines of mdp file (pull_coord_init and K lines)
     sed -i '$d' pull_$DOMAIN.mdp
@@ -145,9 +167,9 @@ run_pull () {
     INIT=$(expr "${STARTS[${DOMAIN}]} $SIGN 1.5" | bc -l)                               #pull/push 1nm (+0.5 for margin)
     echo "pull_coord1_init = $INIT" >> pull_$DOMAIN.mdp                                 #set init distance in mdp
     gmx_mpi grompp -f pull_$DOMAIN.mdp -c $GRO_FILE -p topol.top -r $GRO_FILE -n $INDEX_FILE -o pull_${DOMAIN}${ITERATION}_$K.tpr -maxwarn 1
-    sed -i '$d' pull_$DOMAIN.sh
-    echo "srun gmx_mpi mdrun -v -deffnm pull_${DOMAIN}${ITERATION}_$K -pf pull_${DOMAIN}${ITERATION}_${K}f.xvg -px pull_${DOMAIN}${ITERATION}_${K}x.xvg" >> pull_$DOMAIN.sh
-    sbatch --output=pull_${DOMAIN}${ITERATION}_$K.txt --job-name=pull_${DOMAIN}${ITERATION}_$K pull_$DOMAIN.sh                                                                                                                              
+
+    write_batch $FILE
+    sbatch $FILE.sh                                                                                                                              
 }
 
 
@@ -156,6 +178,7 @@ run_pull () {
 #$1 = index for status array
 #$2 = domain
 #$3 = K
+#$4 = iteration
 status () {
     local INDEX=$1
     local DOMAIN=$2
@@ -211,7 +234,7 @@ new_K () {
         echo "New values of K are: ${K_ARRAY[*]}"
     elif [[ ${#STATUS_ARRAY[@]} -eq 5 ]]
     then
-        if [[ ${STATUS_ARRAY[4]} -eq 0 ]]       #If K_MAX was unsuccessful
+        if [[ ${STATUS_ARRAY[4]} -eq 0 ]]       #If K_MAX was unsuccessful i.e. none of the K's worked
         then
             echo "The largest K was unsuccessful. Let's double Kmax."
             K_MAX=$((2*$K_MAX))
@@ -296,6 +319,7 @@ check_if_done () {
 run_eq () {
     local DOMAIN=$1
     local ITERATION=$2
+    local FILE=pull_eq_${DOMAIN}${ITERATION}
 
     sed -i '$d' pull_eq.mdp             #delete last two lines of mdp file (pull_coord_init lines)
     sed -i '$d' pull_eq.mdp
@@ -303,20 +327,20 @@ run_eq () {
     RANGE_LOW=$(($INIT - 0.25))
     echo "pull_coord1_init = $RANGE_HIGH" >> pull_eq.mdp
     echo "pull_coord2_init = $RANGE_LOW" >> pull_eq.mdp
-    gmx_mpi grompp -f pull_eq.mdp -o pull_eq_${DOMAIN}${ITERATION}.tpr -c $GRO_FILE -r $GRO_FILE -p topol.top -n $INDEX_FILE -maxwarn 1
-    sed -i '$d' pull_eq.sh
-    echo "srun gmx_mpi mdrun -v -deffnm pull_eq_${DOMAIN}${ITERATION} -pf pull_eq_${DOMAIN}${ITERATION}f.xvg -px pull_eq_${DOMAIN}${ITERATION}x.xvg" >> pull_eq.sh
-    sbatch --output=pull_eq_${DOMAIN}${ITERATION}.txt --job-name=pull_eq_${DOMAIN}${ITERATION} pull_eq.sh
-    echo "Running pull_${DOMAIN}${ITERATION} with range: $RANGE_LOW-$RANGE_HIGH"
+    gmx_mpi grompp -f pull_eq.mdp -o ${FILE}.tpr -c $GRO_FILE -r $GRO_FILE -p topol.top -n $INDEX_FILE -maxwarn 1
+
+    write_batch $FILE
+    sbatch ${FILE}.sh
+
+    echo "Running ${FILE} with range: $RANGE_LOW-$RANGE_HIGH"
                                                
     #some waiting will need to happen here
     #or new function for analyzing
 
-    gmx_mpi rms -s pull_eq_${DOMAIN}${ITERATION}.tpr -f pull_eq_${DOMAIN}${ITERATION}.trr -o pull_eq_${DOMAIN}${ITERATION}_rmsd.xvg -tu ns
+    gmx_mpi rms -s ${FILE}.tpr -f ${FILE}.trr -o ${FILE}_rmsd.xvg -tu ns
     echo "backbone backbone"
 
-    FILE="pull_eq_${DOMAIN}${ITERATION}_rmsd.xvg"
-    RESULT=$(/usr/bin/env python3 analyze.py $FILE $DOMAIN)      #0 means fail, the slope wasnt close enough to 0
+    RESULT=$(/usr/bin/env python3 analyze.py ${FILE}_rmsd.xvg $DOMAIN)      #0 means fail, the slope wasnt close enough to 0
     echo "RESULT: $RESULT" 
     if [[ $RESULT -eq 0 ]]
     then

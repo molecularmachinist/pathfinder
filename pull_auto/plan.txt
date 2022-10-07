@@ -31,11 +31,11 @@ Outputs:
 Work in progress: 
 -LEARN: daemonize process i.e. make script not run on the terminal, but in the background
 -new_K function: when to reduce from 5 K's to 3?
--what to do if none of the 5 K's work?
--documentation
+    -when K array has duplicate values
 -testing
 
 TO DO:
+-how to make sure sims for duplicate K's wont be run?
 -study if you should convert all code to python, would that be easier
     -subprocesses work for running bash commands from inside python
     -jupyter notebooks might be the answer to everything
