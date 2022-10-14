@@ -4,10 +4,7 @@ exec > >(tee -a $LOG_LOCATION/output.txt)
 exec 2>&1
 
 module load gromacs
-
-#Take K_MIN and K_MAX as variables from user input
-#or use some default values for example 5 and 100
-#Take total of 5 Ks, equally separated for example 5, 25, 50, 75 and 100 and run in parallel
+module load python-data
 
 
 #Array for domain/molecule names that the user wants to be pulled/pushed
@@ -146,7 +143,6 @@ write_batch () {
     echo "#SBATCH --partition=${PARTITION}" >> $FILE.sh
 
     echo "srun gmx_mpi mdrun -v -deffnm $FILE -pf ${FILE}f.xvg -px ${FILE}x.xvg" >> $FILE.sh
-    
 }
 
 

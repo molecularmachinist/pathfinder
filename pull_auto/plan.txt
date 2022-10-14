@@ -33,6 +33,8 @@ Work in progress:
 -new_K function: when to reduce from 5 K's to 3?
     -when K array has duplicate values
 -testing
+    -left off testing pull_script in mahti, but haven't gotten it to run
+    -bin/bash not working
 
 TO DO:
 -how to make sure sims for duplicate K's wont be run?
