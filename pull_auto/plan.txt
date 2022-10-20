@@ -30,11 +30,13 @@ Outputs:
 
 Work in progress: 
 -LEARN: daemonize process i.e. make script not run on the terminal, but in the background
+-check in the beginning, if start values are bigger/smaller than target values, depending on push/pull dir
 -new_K function: when to reduce from 5 K's to 3?
     -when K array has duplicate values
 -testing
     -left off testing pull_script in mahti, but haven't gotten it to run
-    -bin/bash not working
+    -FIX: i<=3.0 or some other decimal in line 416
+        -test
 
 TO DO:
 -how to make sure sims for duplicate K's wont be run?

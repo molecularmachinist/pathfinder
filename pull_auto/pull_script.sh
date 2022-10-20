@@ -8,13 +8,15 @@ module load python-data
 
 
 #Array for domain/molecule names that the user wants to be pulled/pushed
-declare -A DOMAIN_NAMES
+#declare -A DOMAIN_NAMES
 #Array for starting distances
 declare -A STARTS
 #Array for number of iterations each total pull will need
 declare -A ITERATIONS
 #Array for keeping track of the successful route of simulations
-declare -A ROUTE
+declare -a ROUTE
+#Array for K_MAX values
+declare -A K_MAXS
 
 read_config () {
     . input.config
@@ -60,7 +62,7 @@ read_config () {
             exit 1
         fi
 
-        DIRECTIONS[$d]=${DIRECTIONS[$i]}
+        #DIRECTIONS[$d]=${DIRECTIONS[$i]}
         case "${DIRECTIONS[$d]}" in
         [Pp][Uu][Ll][lL])
             ;;
@@ -72,28 +74,30 @@ read_config () {
         esac
         echo "Direction: ${DIRECTIONS[$d]}"
 
-        STARTS[$d]=${STARTS[$i]}
+        #STARTS[$d]=${STARTS[$i]}
         if [[ ${#STARTS[@]} -ne $NUM_OF_DOMAINS ]]
         then
             echo "ERROR: The number of STARTING DISTANCES does not match the number of domains."
             exit 1
         fi
 
-        TARGETS[$d]=${TARGETS[$i]}
+        #TARGETS[$d]=${TARGETS[$i]}
         if [[ ${#TARGETS[@]} -ne $NUM_OF_DOMAINS ]]
         then
             echo "ERROR: The number of TARGET DISTANCES does not match the number of domains."
             exit 1
         fi
 
-        K_MAX[$d]=${K_MAX[$i]}
-        if [[ ${#K_MAX[@]} -ne $NUM_OF_DOMAINS ]]
+        #K_MAX[$d]=${K_MAX[$i]}
+        if [[ ${#K_MAXS[@]} -ne $NUM_OF_DOMAINS ]]
         then
             echo "ERROR: The number of MAXIMUM FORCE CONSTANTS K does not match the number of domains."
             exit 1
         fi
-
-        ITERATIONS+=( ["$d"]=$(expr "${TARGETS[$d]}-${STARTS[$d]}" | bc -l) )
+        float_iter=$(echo "${TARGETS[$d]} - ${STARTS[$d]}" | bc -l)
+        int_iter=$("${float_iter}%.0f\n")
+        ITERATIONS+=( ["$d"]=${int_iter})
+        #convert iterations to int
 
         i+=1
     done
@@ -105,19 +109,8 @@ read_config () {
 read_config
 
 
-K_MIN_ORIG=5                            #some starting values for K
-K_MAX_ORIG=100
-K_MIN=5
-K_MAX=100
-K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))
-K_MID=$(( (($K_MID+2)/5)*5 ))
-K2=$((($K_MID - $K_MIN)/2))
-K2=$(( (($K2+2)/5)*5 ))
-K4=$((($K_MAX - $K_MID)/2))
-K4=$(( (($K4+2)/5)*5 ))
-K4=$(( $K4+$K_MID ))
+K_MIN_ORIG=5                            
 
-K_ARRAY=($K_MIN $K2 $K_MID $K4 $K_MAX) 
 declare -A STATUS_ARRAY                           
 STATUS_ARRAY[0]=0
 STATUS_ARRAY[1]=0
@@ -131,18 +124,19 @@ STATUS_ARRAY[4]=0
 write_batch () {
     local FILE=$1                
 
-    touch ${FILE}.sh                                
-    echo '#!/bin/bash' >> $FILE.sh
-    echo "#SBATCH --output=$FILE.txt" >> $FILE.sh
-    echo "#SBATCH --time=${TIME}" >> $FILE.sh
-    echo "#SBATCH --job-name=$FILE" >> $FILE.sh
-    echo "#SBATCH --nodes=${NODES}" >> $FILE.sh
-    echo "#SBATCH --ntasks-per-node=${NTASKS-PER-NODE}" >> $FILE.sh
-    echo "#SBATCH --mem=${MEMORY}" >> $FILE.sh
-    echo "#SBATCH --account=${ACCOUNT}" >> $FILE.sh
-    echo "#SBATCH --partition=${PARTITION}" >> $FILE.sh
-
-    echo "srun gmx_mpi mdrun -v -deffnm $FILE -pf ${FILE}f.xvg -px ${FILE}x.xvg" >> $FILE.sh
+    touch "$FILE.sh"     
+    {
+        "#!/bin/bash"
+        "#SBATCH --output=$FILE.txt"
+        "#SBATCH --time=${TIME}"
+        "#SBATCH --job-name=$FILE"
+        "#SBATCH --nodes=${NODES}"
+        "#SBATCH --ntasks-per-node=${NTASKS_PER_NODE}"
+        "#SBATCH --mem=${MEMORY}"
+        "#SBATCH --account=${ACCOUNT}"
+        "#SBATCH --partition=${PARTITION}"
+        "srun gmx_mpi mdrun -v -deffnm $FILE -pf ${FILE}f.xvg -px ${FILE}x.xvg"
+    } >> "$FILE.sh"                          
 }
 
 
@@ -157,15 +151,15 @@ run_pull () {
     local DOMAIN=$3
     local FILE=pull_${DOMAIN}${ITERATION}_$K
 
-    sed -i '$d' pull_$DOMAIN.mdp                                                        #delete last two lines of mdp file (pull_coord_init and K lines)
-    sed -i '$d' pull_$DOMAIN.mdp
-    echo "pull_coord1_k = ${SIGN}$K" >> pull_$DOMAIN.mdp                                #set K in mdp                                                                                               #get starting distance
-    INIT=$(expr "${STARTS[${DOMAIN}]} $SIGN 1.5" | bc -l)                               #pull/push 1nm (+0.5 for margin)
-    echo "pull_coord1_init = $INIT" >> pull_$DOMAIN.mdp                                 #set init distance in mdp
-    gmx_mpi grompp -f pull_$DOMAIN.mdp -c $GRO_FILE -p topol.top -r $GRO_FILE -n $INDEX_FILE -o pull_${DOMAIN}${ITERATION}_$K.tpr -maxwarn 1
+    sed -i '$d' pull_"$DOMAIN".mdp                                                        #delete last two lines of mdp file (pull_coord_init and K lines)
+    sed -i '$d' pull_"$DOMAIN".mdp
+    echo "pull_coord1_k = ${SIGN}$K" >> pull_"$DOMAIN".mdp                                #set K in mdp                                                                                               #get starting distance
+    INIT=$(echo "${STARTS[${DOMAIN}]} $SIGN 1.5" | bc -l)                               #pull/push 1nm (+0.5 for margin)
+    echo "pull_coord1_init = $INIT" >> pull_"$DOMAIN".mdp                                 #set init distance in mdp
+    gmx_mpi grompp -f pull_"$DOMAIN".mdp -c "$GRO_FILE" -p topol.top -r "$GRO_FILE" -n "$INDEX_FILE" -o pull_"${DOMAIN}""${ITERATION}"_"$K".tpr -maxwarn 1
 
-    write_batch $FILE
-    sbatch $FILE.sh                                                                                                                              
+    write_batch "$FILE"
+    sbatch "$FILE".sh                                                                                                                              
 }
 
 
@@ -181,10 +175,10 @@ status () {
     local K=$3
     local ITERATION=$4
 
-    GET_LINE=$(sed '18q;d' pull_${DOMAIN}${ITERATION}_${K}x.xvg)             #get first distance (18th line of xvg file)
+    GET_LINE=$(sed '18q;d' pull_"${DOMAIN}""${ITERATION}"_"${K}"x.xvg)             #get first distance (18th line of xvg file)
     FIRST=${GET_LINE: -7}                           
-    LAST=`tail -n 1 pull_${DOMAIN}${ITERATION}_${K}x.xvg | awk '{print $2}'` #get last distance      awk print $2 means print second column and $2 is not referencing to K (second input parameter)
-    DX=$(expr "$LAST - $FIRST" | bc -l)                                      #difference in x
+    LAST=$(tail -n 1 pull_"${DOMAIN}""${ITERATION}"_"${K}"x.xvg | awk '{print $2}') #get last distance      awk print $2 means print second column and $2 is not referencing to K (second input parameter)
+    DX=$(echo "$LAST - $FIRST" | bc -l)                                      #difference in x
     if [[ $(echo "${DX#-}>=0.9" | bc -l) -eq "1" ]]                          #if difference in starting and ending distance is >= 0.9
     then
         STATUS_ARRAY[$INDEX]=1                                              #1 = successful
@@ -197,19 +191,19 @@ status () {
 
 #Function for determining an array of new K values
 new_K () {
-    if [[ ${#STATUS_ARRAY[@]} -eq 3 ]]
+    if [[ ${#STATUS_ARRAY[@]} -eq 3 ]]             #if the length of the status array is 3
     then
         if [[ STATUS_ARRAY[0] -eq 1 ]]             #if min K was successful
         then
             echo "K_MIN=${K_ARRAY[0]} was successful"
-            break
+            return
         elif [[ STATUS_ARRAY[1] -eq 1 ]]           #if middle K was successful
         then
             echo "K_MID=${K_ARRAY[1]} was successful"
             K_MAX=$K_MID                           #previous middle value is now max value
-            K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))       #new middle value is between old mid and min
-            K_MID=$(( (($K_MID+2)/5)*5 ))          #rounded to the nearest multiple of 5
-            K_ARRAY=($K_MIN $K_MID $K_MAX)
+            K_MID=$(( K_MIN + (K_MAX - K_MIN)/2 ))       #new middle value is between old mid and min
+            K_MID=$(( ((K_MID+2)/5)*5 ))          #rounded to the nearest multiple of 5
+            K_ARRAY=("$K_MIN" "$K_MID" "$K_MAX")
             declare -A STATUS_ARRAY
             STATUS_ARRAY[0]=0
             STATUS_ARRAY[1]=0
@@ -218,9 +212,9 @@ new_K () {
         then
             echo "K_MAX=${K_ARRAY[2]} was successful"
             K_MIN=$K_MID                           #previous mid value is now min value
-            K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))      #new middle value is between max and old mid
-            K_MID=$(( (($K_MID+2)/5)*5 ))          #roundend to the nearest multiple of 5
-            K_ARRAY=($K_MIN $K_MID $K_MAX)
+            K_MID=$(( K_MIN + (K_MAX - K_MIN)/2 ))      #new middle value is between max and old mid
+            K_MID=$(( ((K_MID+2)/5)*5 ))          #roundend to the nearest multiple of 5
+            K_ARRAY=("$K_MIN" "$K_MID" "$K_MAX")
             declare -A STATUS_ARRAY
             STATUS_ARRAY[0]=0
             STATUS_ARRAY[1]=0
@@ -233,21 +227,21 @@ new_K () {
         if [[ ${STATUS_ARRAY[4]} -eq 0 ]]       #If K_MAX was unsuccessful i.e. none of the K's worked
         then
             echo "The largest K was unsuccessful. Let's double Kmax."
-            K_MAX=$((2*$K_MAX))
-            K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))
-            K_MID=$(( (($K_MID+2)/5)*5 ))
-            K2=$((($K_MID - $K_MIN)/2))
-            K2=$(( (($K2+2)/5)*5 ))
-            K4=$((($K_MAX - $K_MID)/2))
-            K4=$(( (($K4+2)/5)*5 ))
-            K4=$(( $K4+$K_MID ))
+            K_MAX=$((2*K_MAX))
+            K_MID=$(( K_MIN + (K_MAX - K_MIN)/2 ))
+            K_MID=$(( ((K_MID+2)/5)*5 ))
+            K2=$(((K_MID - K_MIN)/2))
+            K2=$(( (($K2 + 2)/5)*5 ))
+            K4=$(((K_MAX - K_MID)/2))
+            K4=$(( (($K4 + 2)/5)*5 ))
+            K4=$(( $K4 + K_MID ))
             STATUS_ARRAY[0]=0
             STATUS_ARRAY[1]=0
             STATUS_ARRAY[2]=0
             STATUS_ARRAY[3]=0
             STATUS_ARRAY[4]=0
             echo "New values of K are: ${K_ARRAY[*]}"
-            break
+            return
         fi                                       
         for i in {0..4}
         do
@@ -258,13 +252,13 @@ new_K () {
                 K_MAX=${K_ARRAY[$i]}
                 local prev=$(( $i - 1 ))
                 K_MIN=${K_ARRAY[$prev]}
-                K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))
-                K_MID=$(( (($K_MID+2)/5)*5 ))
+                K_MID=$(( K_MIN + (K_MAX - K_MIN)/2 ))
+                K_MID=$(( ((K_MID+2)/5)*5 ))
                 declare -A STATUS_ARRAY
                 STATUS_ARRAY[0]=0
                 STATUS_ARRAY[1]=0
                 STATUS_ARRAY[2]=1
-                K_ARRAY=($K_MIN $K_MID $K_MAX)
+                K_ARRAY=("$K_MIN" "$K_MID" "$K_MAX")
                 echo "New values of K are: ${K_ARRAY[*]}"
                 break
             else
@@ -290,14 +284,17 @@ check_if_done () {
             RES=0                                                             #0=fail
         fi
     elif [[ ${#STATUS_ARRAY[@]} -eq 5 ]]
+    then
         if [[ STATUS_ARRAY[1] -eq 1 && $(expr $K2 - $K_MIN) -le 5 ]]          #best force constant is found if K_MID is successful and the difference to K_MIN is < 5
         then
             RES=1                                                             #1=success
             BEST_K=$K2
         elif [[ STATUS_ARRAY[2] -eq 1 && $(expr $K_MID - $K2) -le 5 ]]
+        then
             RES=1
             BEST_K=$K_MID
         elif [[ STATUS_ARRAY[3] -eq 1 && $(expr $K4 - $K_MID) -le 5 ]]
+        then
             RES=1
             BEST_K=$K4
         else
@@ -319,29 +316,29 @@ run_eq () {
 
     sed -i '$d' pull_eq.mdp             #delete last two lines of mdp file (pull_coord_init lines)
     sed -i '$d' pull_eq.mdp
-    RANGE_HIGH=$(($INIT + 0.25))
-    RANGE_LOW=$(($INIT - 0.25))
+    RANGE_HIGH=$(echo "$INIT + 0.25" | bc -l)
+    RANGE_LOW=$(echo "$INIT - 0.25" | bc -l)
     echo "pull_coord1_init = $RANGE_HIGH" >> pull_eq.mdp
     echo "pull_coord2_init = $RANGE_LOW" >> pull_eq.mdp
-    gmx_mpi grompp -f pull_eq.mdp -o ${FILE}.tpr -c $GRO_FILE -r $GRO_FILE -p topol.top -n $INDEX_FILE -maxwarn 1
+    gmx_mpi grompp -f pull_eq.mdp -o "$FILE".tpr -c "$GRO_FILE" -r "$GRO_FILE" -p topol.top -n "$INDEX_FILE" -maxwarn 1
 
-    write_batch $FILE
-    sbatch ${FILE}.sh
+    write_batch "$FILE"
+    sbatch "$FILE".sh
 
     echo "Running ${FILE} with range: $RANGE_LOW-$RANGE_HIGH"
                                                
     #some waiting will need to happen here
     #or new function for analyzing
 
-    gmx_mpi rms -s ${FILE}.tpr -f ${FILE}.trr -o ${FILE}_rmsd.xvg -tu ns
+    gmx_mpi rms -s "$FILE".tpr -f "$FILE".trr -o "$FILE"_rmsd.xvg -tu ns
     echo "backbone backbone"
 
-    RESULT=$(/usr/bin/env python3 analyze.py ${FILE}_rmsd.xvg $DOMAIN)      #0 means fail, the slope wasnt close enough to 0
+    RESULT=$(/usr/bin/env python3 analyze.py "$FILE"_rmsd.xvg "$DOMAIN")      #0 means fail, the slope wasnt close enough to 0
     echo "RESULT: $RESULT" 
     if [[ $RESULT -eq 0 ]]
     then
         echo "Running equilibration again with longer wall time"
-        run_eq $1 $2                #Use the same domain and iteration
+        run_eq "$1" "$2"                #Use the same domain and iteration
     else
         echo "Equilibration was successful"
     fi
@@ -352,7 +349,7 @@ ask_continue () {
     echo "The first iteration of pulling and equilibration has finished."
     echo "Please check the pullf and pullx files, aswell as the trajectory files and make sure everything looks correct."
     while true; do
-        read -p "Do you wish to continue to the next iteration? Y/N?" ANSWER        #Ask if the user wishes to continue simulations
+        read -r -p "Do you wish to continue to the next iteration? Y/N?" ANSWER        #Ask if the user wishes to continue simulations
         case "$ANSWER" in
             [yY] | [yY][eE][sS])
                 echo "You answered yes. Continuing the simulations"
@@ -371,16 +368,16 @@ ask_continue () {
 #Function for cleaning up unnecessary files
 cleanup () {
     echo "Removing files from the unsuccessful simulations is recommended."
-    read -p "Do you want to delete unnecessary files? Y/N" CLEAN
+    read -r -p "Do you want to delete unnecessary files? Y/N" CLEAN
     case "$CLEAN" in 
         [yY] | [yY][eE][sS])
             echo "You answered yes. Deleting unnecessary files."
-
-            break
+            #Here do something that will remove unnecessary files
+            return
             ;;
         [nN] | [nN][oO])
             echo "You answered no. Keeping all files."
-            break
+            return
             ;;
         *)
             echo "Invalid input" >&2
@@ -400,18 +397,19 @@ run_simulation () {
 
     for ((i=1; i<=$NUM_OF_ITERATIONS; i++))          
     do
-        K_MIN=$K_MIN_ORIG                   #set 5 different evenly spaced Ks 
-        K_MAX=$K_MAX_ORIG                   
-        K_MID=$(( $K_MIN + ($K_MAX - $K_MIN)/2 ))
-        K_MID=$(( (($K_MID+2)/5)*5 ))
-        K2=$((($K_MID - $K_MIN)/2))
+        K_MIN=$K_MIN_ORIG                   #set 5 different evenly spaced Ks
+        K_MAX=${K_MAXS[$1]}                    
+        K_MID=$(( K_MIN + (K_MAX - K_MIN)/2 ))
+        K_MID=$(( ((K_MID+2)/5)*5 ))
+        K2=$(((K_MID - K_MIN)/2))
         K2=$(( (($K2+2)/5)*5 ))
-        K4=$((($K_MAX - $K_MID)/2))
+        K4=$(((K_MAX - K_MID)/2))
         K4=$(( (($K4+2)/5)*5 ))
+        K_ARRAY=("$K_MIN" "$K2" "$K_MID" "$K4" "$K_MAX")
 
         for ((j=0; j<=4; j++))                  #run pulling sims for 5 different Ks
         do
-            run_pull $i $K_ARRAY[$j] $DOMAIN
+            run_pull "$i" "${K_ARRAY[$j]}" "$DOMAIN"
         done
         echo "Running 5 pulling simulations for $DOMAIN domains (iteration $i) with K values: ${K_ARRAY[*]}"
 
@@ -419,16 +417,16 @@ run_simulation () {
 
         for ((j=0; j<=4; j++))                  #determine status for each K
         do
-            status $j $DOMAIN $K_ARRAY[$j] $i   #status=1 means the K managed to pull/push and status=0 means the K didn't manage to pull/push
+            status "$j" "$DOMAIN" "${K_ARRAY[$j]}" "$i"   #status=1 means the K managed to pull/push and status=0 means the K didn't manage to pull/push
         done
 
         check_if_done                           #check if the best K has been found
         if [[ $RES -eq 1 ]]                     #stop search is best K is found
         then
-            ROUTE+=(pull_${DOMAIN}${i}_$BEST_K)
+            ROUTE+=(pull_"${DOMAIN}""${i}"_"$BEST_K")
             PULLF="pull_${DOMAIN}${i}_${BEST_K}f.xvg"
             PULLX="pull_${DOMAIN}${i}_${BEST_K}x.xvg"
-            /usr/bin/env python3 pull_plot.py $PULLX $PULLF
+            /usr/bin/env python3 pull_plot.py "$PULLX" "$PULLF"
             local FINAL_TEXT="The optimal force constant for ${DOMAIN} domain (iteration: $i) has been found"
             echo "$FINAL_TEXT"
             echo "K=$BEST_K"
@@ -438,31 +436,30 @@ run_simulation () {
 
         while [[ $RES -eq 0 ]]         #while K isn't found yet
         do
-            run_pull $i $K_MID $DOMAIN
+            run_pull "$i" $K_MID "$DOMAIN"
             status 1 $K_MID
             check_if_done
             if [[ $RES -eq 1 ]]
             then
-                ROUTE+=(pull_${DOMAIN}${i}_$BEST_K)
+                ROUTE+=(pull_"${DOMAIN}""${i}"_"$BEST_K")
                 PULLF="pull_${DOMAIN}${i}_${BEST_K}f.xvg"
                 PULLX="pull_${DOMAIN}${i}_${BEST_K}x.xvg"
-                /usr/bin/env python3 pull_plot.py $PULLX $PULLF
+                /usr/bin/env python3 pull_plot.py "$PULLX" "$PULLF"
                 local FINAL_TEXT="The optimal force constant has been found"
                 echo "$FINAL_TEXT"
                 FORCE_CONSTANT=$K_MID
                 echo "K=$FORCE_CONSTANT"
-                done
             else
                 new_K                                   #continue searching for best K
             fi
         done
 
-        run_eq $DOMAIN $i                           #equilibrate
+        run_eq "$DOMAIN" "$i"                           #equilibrate
 
         sleep 15h
 
         if [[ $i -ne $NUM_OF_ITERATIONS ]]
-        do
+        then
             ask_continue                                #ask user if they wish to continue with the next iteration
         else
             echo "That was the last iteration. The program will stop now."
@@ -488,10 +485,9 @@ run_simulation () {
                 SIGN='-'
                 ;;
         esac
-        run_simulation $DOMAIN_NAMES[$i] ${ITERATIONS[${DOMAIN_NAMES[$i]}]}
+        run_simulation "${DOMAIN_NAMES[$i]}" "${ITERATIONS[${DOMAIN_NAMES[$i]}]}"
     done
 
 
     
 
-done
