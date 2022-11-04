@@ -28,6 +28,38 @@ Outputs:
 -tree diagram of simulations which shows the successful route
 -movie of concat trajectories
 
+
+################ CHANGING TO PYTHON ################
+Small files:
+-input !
+-sbatch !
+-error handling
+Pull_script:
+-read_config 
+    -how to set up data structures for domain info???
+-write_batch (how to get file name into sbatch)
+-run_pull (WIP) (needs fixing when write_batch finishes)
+-status !
+-new_K !
+-check_if_done !
+-run_eq (WIP) (needs fixing when write_batch finishes)
+-ask_continue !
+-cleanup (WIP) (need to figure out which files to remove)
+-run_simulation
+
+! = done
+
+
+Things to copy/learn from Santeri's functional sampling tool
+-how to change from bash python
+-how to work with supercomputers
+-cleaning up
+-how to daemonize/wait for jobs to finish
+-config file
+-sbatch template
+
+
+
 Work in progress: 
 -LEARN: daemonize process i.e. make script not run on the terminal, but in the background
 -check in the beginning, if start values are bigger/smaller than target values, depending on push/pull dir
@@ -35,8 +67,8 @@ Work in progress:
     -when K array has duplicate values
 -testing
     -left off testing pull_script in mahti, but haven't gotten it to run
-    -FIX: i<=3.0 or some other decimal in line 416
-        -test
+    -only makes tpr files of K=5 and not others
+-look into if you should use array jobs 
 
 TO DO:
 -how to make sure sims for duplicate K's wont be run?
