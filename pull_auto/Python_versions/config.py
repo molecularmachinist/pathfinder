@@ -20,10 +20,12 @@ gro = "step5_input.gro"
 ############# Domain Info #############
 num_of_domains = 1
 domain_names = ("TM")
-directions = "pull"
-start = 9.6
-target = 8.6
-K_max = 50
 
-
+TM = {
+    "name": "TM",
+    "direction": "pull",
+    "start": 9.6,
+    "target": 8.6,
+    "K_max": 50,
+}
 

@@ -4,6 +4,7 @@ import numpy as np
 import subprocess
 import string
 from analyze import *
+import write_batch as wb
 
 def bash_command(cmd):
     subprocess.Popen(cmd, shell=True, executable='/bin/bash')
@@ -29,7 +30,7 @@ def run_eq(domain: string, iter: int):
     open(mdp_file, 'w').writelines(lines)
 
     bash_command("gmx_mpi grompp -f pull_eq_{}.mdp -o pull_eq_{}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(domain, file_name, cfg.gro, cfg.gro, cfg.ndx))
-    # write_batch_file(file_name)
+    wb.write_batch(file_name)
     bash_command("sbatch {}.sh".format(file_name))
     print("Equilibration {} submitted".format(file_name))
 
@@ -44,7 +45,7 @@ def run_eq(domain: string, iter: int):
     print("Result: ", result)
     if result == 0:
         print("Running equilibration again with longer wall time")
-        ## increase wall time (write batch???)
+        wb.wall_time()
         run_eq(domain, iter)
     else:
         print("Equilibration was successful")

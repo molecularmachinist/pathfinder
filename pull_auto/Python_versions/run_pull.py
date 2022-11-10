@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 
 import subprocess
-import sys
-import os
 import string
 import config as cfg
+import write_batch as wb
 
 init = cfg.start
 
@@ -22,6 +21,5 @@ def run_pull(iter: int, K: int, domain: string, sign: int):
     open(mdp_file, 'w').writelines(lines)
 
     bash_command("gmx_mpi grompp -f pull_{}.mdp -o pull_{}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(domain, file_name, cfg.gro, cfg.gro, cfg.ndx))
-    # input file name as variable into sbatch script
-    # write_batch_file(file_name)
+    wb.write_batch(file_name)
     bash_command("sbatch {}.sh".format(file_name))
