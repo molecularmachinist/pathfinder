@@ -19,7 +19,6 @@ gro = "step5_input.gro"
 
 ############# Domain Info #############
 num_of_domains = 1
-domain_names = ("TM")
 
 TM = {
     "name": "TM",
@@ -29,3 +28,4 @@ TM = {
     "K_max": 50,
 }
 
+domains=[TM]

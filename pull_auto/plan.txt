@@ -34,20 +34,25 @@ Small files:
 -input !
 -sbatch !
 -error handling
+-config !
 Pull_script:
--read_config 
-    -how to set up data structures for domain info???
--write_batch (how to get file name into sbatch)
--run_pull (WIP) (needs fixing when write_batch finishes)
+-read_config (no need for own function, implement on pull_script, calc iterations and add to dict)
+-write_batch (WIP) (remove previous run from sbatch file, and how to increase wall time)
+-run_pull ! 
 -status !
--new_K !
+-new_K (WIP) (what to do with duplicate Ks???)
 -check_if_done !
--run_eq (WIP) (needs fixing when write_batch finishes)
+-run_eq (WIP) (how to wait for sims?)
 -ask_continue !
 -cleanup (WIP) (need to figure out which files to remove)
 -run_simulation
 
 ! = done
+
+Things to add:
+-cleanup
+-error handling ! (fine for now) 
+-log events ! (fine for now)
 
 
 Things to copy/learn from Santeri's functional sampling tool
