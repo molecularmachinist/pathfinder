@@ -2,9 +2,9 @@
 
 import numpy as np
 
-status_array = np.zeros((5))
-#status_array[2] = 1
-K_array = np.array([5, 20, 30, 40, 50])
+status_array = np.array([0, 0, 0, 1, 1])
+K_array = np.array([5, 25, 50, 75, 100])
+global used_Ks
 used_Ks = K_array
 
 def new_K(status_array, K_array):
@@ -23,16 +23,18 @@ def new_K(status_array, K_array):
         # the successful K will now be K max in the K_array
         K_array[4] = K_array[idx]
     
-    # set other K's in K_array equally spaced between 5 and K max
+    # set other K's in K_array equally spaced between K_min and K max
+    K_array[0] = K_array[idx-1]
     K_array[2] = (K_array[0] + (K_array[4]-K_array[0])/2)
     # round K's to nearest multiple of 5
     K_array[2] = round(K_array[2]/5)*5
-    K_array[1] = (K_array[2] - K_array[0])/2
+    K_array[1] = (K_array[0] + (K_array[2] - K_array[0])/2)
     K_array[1] = round(K_array[1]/5)*5
     K_array[3] = (K_array[4] - K_array[2])/2
     K_array[3] = round(K_array[3]/5)*5
     K_array[3] = K_array[2] + K_array[3]
     print('New K_array: ' + str(K_array))
+    global used_Ks
     used_Ks += K_array
     # remove duplicates from used_Ks
     used_Ks = np.unique(used_Ks)

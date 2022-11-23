@@ -14,7 +14,7 @@ remote_name = "mahti"
 ndx = "index.ndx"
 topol = "topol.top"
 mdp = "pull_TM.mdp"
-gro = "step5_input.gro"
+gro = "step7.gro"
 
 
 ############# Domain Info #############

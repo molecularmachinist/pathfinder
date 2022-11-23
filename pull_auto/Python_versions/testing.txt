@@ -1,0 +1,29 @@
+Functions:
+
+-read_config
+    -ok
+    -prob need more tests
+-write_sbatch
+    -ok
+    -prob needs change in file name/location
+-wall_time
+    -ok
+    -prob needs change in file name/location
+    -does sbatch file need time increase?
+-run_pull
+    -ok
+-status
+
+-new_K
+
+-check_if_done
+
+-run_eq
+
+-ask_continue
+
+-cleanup
+
+-run_simulation
+
+-main

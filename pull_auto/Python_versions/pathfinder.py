@@ -20,8 +20,6 @@ logging.info('Starting script')
 # Read config
 global gro_file
 gro_file = cfg.gro
-global init
-init = cfg.start 
 global used_Ks 
 used_Ks = []
 global route
@@ -58,7 +56,7 @@ def read_config():
         sys.exit()
 
     # check that the number of domains matches the length of domains array
-    if len(cfg.domains) != len(cfg.num_of_domains):
+    if len(cfg.domains) != cfg.num_of_domains:
         print('The number of domains must match the length of the domains array')
         logging.error('The number of domains does not match the length of the domains array')
         sys.exit()
@@ -73,19 +71,37 @@ status_array = np.zeros((5))
 K_array = np.array([5, 10, 15, 20, 25])
 
 
-sbatch = 'sbatch.sh'
-def write_sbatch(file_name):
+
+def write_sbatch(file_name: string, sbatch: string):
     # remove last line from sbatch.sh
     command = 'srun gmx_mpi mdrun -v -deffnm {} -pf {}f.xvg -px {}x.xvg'.format(file_name, file_name, file_name)
-    with open(sbatch, "w") as f:
+    # delete last line in sbatch.sh
+    with open(sbatch, 'r') as f:
+        lines = f.readlines()
+    with open(sbatch, 'w') as f:
+        for line in lines[:-1]:
+            f.write(line)
+    # add command into the end of sbatch.sh
+    with open(sbatch, 'a') as f:
         f.write(command)
-        f.close()
     
-def wall_time():
-    # double wall time (7th line in sbatch.sh)
-    lines = open(sbatch, 'r').readlines()
-    lines[6] = "#SBATCH --time=24:00:00"
-    open(sbatch, 'w').writelines(lines)
+
+# doubles nsteps in mdp file
+def wall_time(mdp_file: string):
+    # take 6th line from mdp file
+    with open(mdp_file, 'r') as f:
+        for i, line in enumerate(f):
+            if i == 5:
+                line = line.split()
+                nsteps = line[2]
+    nsteps = int(nsteps) * 2
+    command = 'nsteps    = {} \n'.format(nsteps)
+    # delete 5th line in mdp file and add new command
+    with open(mdp_file, 'r') as f:
+        lines = f.readlines()
+    lines[5] = command
+    with open(mdp_file, 'w') as f:
+        f.writelines(lines)
 
 
 
@@ -93,22 +109,25 @@ def wall_time():
 
 
 def bash_command(cmd):
-    subprocess.Popen(cmd, shell=True, executable='/bin/bash')
+    subprocess.Popen(cmd, shell=True, executable='/bin/bash', stdin=None, stdout=None, stderr=None)
 
 def run_pull(iter: int, K: int, domain: string, sign: int):
     file_name = 'pull_' + str(domain) + str(iter) + '_' + str(K)
     mdp_file = 'pull_' + str(domain) + '.mdp'
+    batch = 'sbatch.sh'
 
     lines = open(mdp_file, 'r').readlines()
-    lines[-1] = "pull_coord1_k = " + str(K) 
+    lines[-1] = "\npull_coord1_k = " + str(K) 
+    global init
     init = init + 1.5*sign
     lines[-2] = "pull_coord1_init = " + str(init)
     open(mdp_file, 'w').writelines(lines)
 
     bash_command("gmx_mpi grompp -f pull_{}.mdp -o pull_{}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(domain, file_name, cfg.gro, cfg.gro, cfg.ndx))
-    write_sbatch(file_name)
-    bash_command("sbatch {}.sh".format(file_name))
-    logging.info('Running pull simulation for domain {} with K = {}'.format(domain, K))
+    write_sbatch(file_name, batch)
+    bash_command("sbatch {}".format(batch))
+    print("Running {} with K = {}".format(file_name, K))
+    return
 
 
 
@@ -175,6 +194,10 @@ def new_K(status_array, K_array):
     K_array[3] = (K_array[4] - K_array[2])/2
     K_array[3] = round(K_array[3]/5)*5
     K_array[3] = K_array[2] + K_array[3]
+    global used_Ks
+    used_Ks += K_array
+    # remove duplicates from used_Ks
+    used_Ks = np.unique(used_Ks)
     
     status_array = np.zeros((5))
     status_array[4] = 1
@@ -255,6 +278,7 @@ def run_eq(domain: string):
     else:
         print("Equilibration was successful")
         logging.info("Equilibration was successful")
+    
 
 
 
@@ -295,6 +319,8 @@ def cleanup():
 
 
 def run_simulation(domain_dict):
+    global init 
+    init = domain_dict['start']
     for i in domain_dict["iterations"]:
         # set 5 different K's
         K_array = np.array([5, 20, 30, 40, 50])
@@ -303,14 +329,14 @@ def run_simulation(domain_dict):
         while res == 0:
             for j in range(5):
                 # if K_array[j] is not in used_Ks, run simulation
-                if K_array[j] not in used_Ks:
+                if K_array[j] not in used_Ks and K_array[j]>0:
                     run_pull(i, K_array[j], domain_dict["name"], domain_dict["sign"])
             print("Running simulations for domain " + domain_dict["name"] + " iteration " + str(i))
             used_Ks += K_array
             # remove duplicates from used_Ks
             used_Ks = np.unique(used_Ks)
 
-            # wait for simulations to finish
+            ## wait for jobs in mahti to finish
 
             for j in range(5):
                 status(j, K_array[j], domain_dict["name"], i)
