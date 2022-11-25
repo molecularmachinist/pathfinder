@@ -72,7 +72,7 @@ K_array = np.array([5, 10, 15, 20, 25])
 
 
 
-def write_sbatch(file_name: string, sbatch: string):
+def write_batch(file_name: string, sbatch: string):
     # remove last line from sbatch.sh
     command = 'srun gmx_mpi mdrun -v -deffnm {} -pf {}f.xvg -px {}x.xvg'.format(file_name, file_name, file_name)
     # delete last line in sbatch.sh
@@ -124,7 +124,7 @@ def run_pull(iter: int, K: int, domain: string, sign: int):
     open(mdp_file, 'w').writelines(lines)
 
     bash_command("gmx_mpi grompp -f pull_{}.mdp -o pull_{}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(domain, file_name, cfg.gro, cfg.gro, cfg.ndx))
-    write_sbatch(file_name, batch)
+    write_batch(file_name, batch)
     bash_command("sbatch {}".format(batch))
     print("Running {} with K = {}".format(file_name, K))
     return
@@ -134,7 +134,7 @@ def run_pull(iter: int, K: int, domain: string, sign: int):
 
 
 def status(idx: int, K: int, domain: string, iter: int):
-    file_name = 'pull_' + str(domain) + str(iter) + '_' + str(K) + 'x.xvg'
+    file_name = 'files/pull_' + str(domain) + str(iter) + '_' + str(K) + 'x.xvg'
     # file_name = 'pull_TK2_30x.xvg'
     # get 18th line from file
     with open(file_name, 'r') as f:
@@ -238,33 +238,36 @@ def check_if_done():
 
 
 
-def run_eq(domain: string):
-    file_name = 'pull_eq_' + str(domain)
-    mdp_file = 'pull_eq' + str(domain) + '.mdp'
+def run_eq(domain: string, iter: int):
+    file_name = 'pull_eq_' + str(domain) + str(iter)
+    mdp_file = 'pull_eq.mdp'
 
     #delete last 2 lines of mdp file
     lines = open(mdp_file, 'r').readlines()
     del lines[-2:]
 
+    global init
     current_coord = init
     range_high = current_coord + 0.25
     range_low = current_coord - 0.25
 
     #insert new lines into mdp file
-    lines.append("pull_coord1_init = " + str(range_high) + ")")
-    lines.append("pull_coord2_init = " + str(range_low) + ")")
+    lines.append("pull_coord1_init = " + str(range_high))
+    lines.append("pull_coord2_init = " + str(range_low))
     open(mdp_file, 'w').writelines(lines)
 
     bash_command("gmx_mpi grompp -f pull_eq_{}.mdp -o pull_eq_{}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(domain, file_name, gro_file, gro_file, cfg.ndx))
-    write_sbatch(file_name)
-    bash_command("sbatch {}.sh".format(file_name))
+    write_batch(file_name)
+    bash_command("sbatch {}".format(file_name))
     print("Equilibration {} submitted".format(file_name))
     logging.info("Equilibration {} submitted".format(file_name))
 
-    ##waiting
+    #############
+    ## WAITING ##
+    #############
 
-    bash_command("gmx_mpi rms -s {}.tpr -f {}.trr -o {}_rmsd.xvg -tu ns".format(file_name, file_name, file_name))
-    bash_command("backbone backbone")
+    command="gmx_mpi rms -s {}.tpr -f {}.xtc -o {}_rmsd.xvg -tu ns".format(file_name, file_name, file_name)
+    subprocess.run([command], input="4 4", text=True, shell=True, executable='/bin/bash')
 
     rmsd_xvg_file = file_name + '_rmsd.xvg'
     # from analyze.py use function analyze
@@ -274,7 +277,7 @@ def run_eq(domain: string):
         print("Running equilibration again with longer wall time")
         logging.info("Running equilibration again with longer wall time")
         wall_time()
-        run_eq(domain)
+        run_eq(domain, iter)
     else:
         print("Equilibration was successful")
         logging.info("Equilibration was successful")

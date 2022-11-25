@@ -37,24 +37,11 @@ def analyze(file, domain):
     ax.set_ylabel("RMSD (Å)")
     ax.set_title("RMSD: Equilibration of {} domain".format(domain))
     figure.tight_layout()
-    plt.savefig('../outputs/rmsd.png')
+    plt.savefig('rmsd.png')
     plt.show()
     if res == 0:
-        print("The equilibration wasn't successful. The structure isn't equilibrated enough.")
-        print("Please increase the equilibration time by increasing the number of steps.")
-        while True:
-            try:
-                steps=int(input("Please give the new number of steps. New nsteps: "))
-            except ValueError:
-                print("Please give the steps as an integer.")
-                continue
-            else:
-                break
-        print("Make sure to also increase slurm time!")
-        bash_command("sed -i '$d' pull_eq.mdp")               #remove nsteps from mdp file
-        with open("pull_eq.mdp", "a") as f:
-            f.write("nsteps          = ", steps)
-        print(0)
+        #print("The equilibration wasn't successful. The structure isn't equilibrated enough.")
+        return 0
     else:
         #print("The equilibration was successful.")
-        print(1)
+        return 1

@@ -2,9 +2,8 @@
 
 import numpy as np
 
-status_array = np.zeros((5))
-status_array[1] = 1
-K_array = np.array([5, 10, 15, 40, 50])
+status_array = np.array([0, 0, 0, 1, 1])
+K_array = np.array([5, 10, 35, 40, 50])
 
 #Check if the best force constant has been found
 # best means the smallest possible successful force constant K

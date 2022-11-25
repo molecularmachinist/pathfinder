@@ -3,9 +3,9 @@
 ## input srun command into sbatch.sh with file name
 
 sbatch = '/Users/vanil/Documents/HY/pull_script.sh/pathfinder/pull_auto/Python_versions/sbatch.sh'
-mdp_file = '/Users/vanil/Documents/HY/pull_script.sh/pathfinder/pull_auto/Python_versions/pull_eq.mdp'
+mdp_file = '/Users/vanil/Documents/HY/pull_script.sh/pathfinder/files/pull_eq.mdp'
 
-def write_sbatch(file_name):
+def write_batch(file_name):
     # remove last line from sbatch.sh
     command = 'srun gmx_mpi mdrun -v -deffnm {} -pf {}f.xvg -px {}x.xvg'.format(file_name, file_name, file_name)
     # delete last line in sbatch.sh
@@ -40,8 +40,8 @@ def wall_time():
 
     
 
-file_name = 'pull_TM1_30'
+#file_name = 'pull_TM1_30'
 
 #write_sbatch(file)
 
-wall_time()
+#wall_time()

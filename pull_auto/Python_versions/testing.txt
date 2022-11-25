@@ -13,13 +13,16 @@ Functions:
 -run_pull
     -ok
 -status
-
+    -ok
 -new_K
-
+    -ok
+    -duplicate K's are the problem, but for now just don't run duplicates
+    this may waste time/resources
 -check_if_done
-
+    -ok
 -run_eq
-
+    -needs waiting between eq and rmsd
+    -everything else ok
 -ask_continue
 
 -cleanup

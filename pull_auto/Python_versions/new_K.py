@@ -2,7 +2,7 @@
 
 import numpy as np
 
-status_array = np.array([0, 0, 0, 1, 1])
+status_array = np.array([0, 0, 1, 1, 1])
 K_array = np.array([5, 25, 50, 75, 100])
 global used_Ks
 used_Ks = K_array
