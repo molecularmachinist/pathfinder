@@ -8,19 +8,21 @@ import config as cfg
 import numpy as np
 from analyze import *
 import sys
-from pull_plot import *
 import logging
+import time
 
 
 ## LOGGING
 logging.basicConfig(filename='log_pathfinder.log', level=logging.DEBUG)
-logging.info('Starting script')
+# clear log file before running
+open('log_pathfinder.log', 'w').close()
+logging.info('Starting program')
 
 
 # Read config
 global gro_file
 gro_file = cfg.gro
-global used_Ks 
+global used_Ks
 used_Ks = []
 global route
 route = []
@@ -60,6 +62,8 @@ def read_config():
         print('The number of domains must match the length of the domains array')
         logging.error('The number of domains does not match the length of the domains array')
         sys.exit()
+
+
 
 
 
@@ -123,18 +127,18 @@ def run_pull(iter: int, K: int, domain: string, sign: int):
     lines[-2] = "pull_coord1_init = " + str(init)
     open(mdp_file, 'w').writelines(lines)
 
-    bash_command("gmx_mpi grompp -f pull_{}.mdp -o pull_{}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(domain, file_name, cfg.gro, cfg.gro, cfg.ndx))
+    bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(domain, file_name, cfg.gro, cfg.gro, cfg.ndx))
     write_batch(file_name, batch)
     bash_command("sbatch {}".format(batch))
     print("Running {} with K = {}".format(file_name, K))
-    return
+    time.sleep(7)
 
 
 
 
 
 def status(idx: int, K: int, domain: string, iter: int):
-    file_name = 'files/pull_' + str(domain) + str(iter) + '_' + str(K) + 'x.xvg'
+    file_name = 'pull_' + str(domain) + str(iter) + '_' + str(K) + 'x.xvg'
     # file_name = 'pull_TK2_30x.xvg'
     # get 18th line from file
     with open(file_name, 'r') as f:
@@ -195,7 +199,8 @@ def new_K(status_array, K_array):
     K_array[3] = round(K_array[3]/5)*5
     K_array[3] = K_array[2] + K_array[3]
     global used_Ks
-    used_Ks += K_array
+    # append used_Ks with the new K_array
+    used_Ks.append(K_array)
     # remove duplicates from used_Ks
     used_Ks = np.unique(used_Ks)
     
@@ -258,7 +263,7 @@ def run_eq(domain: string, iter: int):
 
     bash_command("gmx_mpi grompp -f pull_eq_{}.mdp -o pull_eq_{}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(domain, file_name, gro_file, gro_file, cfg.ndx))
     write_batch(file_name)
-    bash_command("sbatch {}".format(file_name))
+    bash_command("sbatch -W {}".format(file_name))
     print("Equilibration {} submitted".format(file_name))
     logging.info("Equilibration {} submitted".format(file_name))
 
@@ -321,10 +326,80 @@ def cleanup():
 
 
 
+
+def pull_plot(pullx_file, pullf_file):
+    x,y = np.loadtxt(pullx_file,comments=["@","#"],unpack=True)
+    n=math.ceil(0.8*len(x))
+    x=x[-n:]
+    y=y[-n:]
+    figure = plt.figure(figsize=(6,3))
+    ax = figure.add_subplot(111)
+    ax.plot(x, y)
+    ax.set_xlim(x[0], x[-1])
+    ax.set_xlabel("Time (ps)")
+    ax.set_ylabel("COM")
+    ax.set_title("Pull COM")
+    figure.tight_layout()
+    plt.savefig('../outputs/{}.png'.format(pullx_file))
+    plt.show()
+
+    x,y = np.loadtxt(pullf_file,comments=["@","#"],unpack=True)
+    n=math.ceil(0.8*len(x))
+    x=x[-n:]
+    y=y[-n:]
+    figure = plt.figure(figsize=(6,3))
+    ax = figure.add_subplot(111)
+    ax.plot(x, y)
+    ax.set_xlim(x[0], x[-1])
+    ax.set_xlabel("Time (ps)")
+    ax.set_ylabel("Pull force")
+    ax.set_title("Pull force for COM pulling")
+    figure.tight_layout()
+    plt.savefig('../outputs/{}.png'.format(pullf_file))
+    plt.show()
+
+
+
+
+def analyze(file, domain):
+    x,y = np.loadtxt(file,comments=["@","#"],unpack=True)
+    n=math.ceil(0.8*len(x))
+    x=x[-n:]
+    y=y[-n:]
+    slope=linregress(x,y).slope
+    slope=float('{:f}'.format(slope))  
+    #print("Slope:", slope)         #Write slope into output file
+    if slope < 0.25 and slope > -0.25:
+        res=1
+    else:
+        res=0
+    figure = plt.figure(figsize=(6,3))
+    ax = figure.add_subplot(111)
+    ax.plot(x, y)
+    ax.set_xlim(x[0], x[-1])
+    ax.set_ylim(0, 2)
+    ax.set_xlabel("Time (ns)")
+    ax.set_ylabel("RMSD (Å)")
+    ax.set_title("RMSD: Equilibration of {} domain".format(domain))
+    figure.tight_layout()
+    plt.savefig('rmsd.png')
+    plt.show()
+    if res == 0:
+        #print("The equilibration wasn't successful. The structure isn't equilibrated enough.")
+        return 0
+    else:
+        #print("The equilibration was successful.")
+        return 1
+
+
+
 def run_simulation(domain_dict):
     global init 
     init = domain_dict['start']
-    for i in domain_dict["iterations"]:
+    global used_Ks
+    # iterations is the difference in the start and end values
+    iterations = abs(domain_dict['target'] - domain_dict['start'])
+    for i in range(int(iterations)):
         # set 5 different K's
         K_array = np.array([5, 20, 30, 40, 50])
 
@@ -333,13 +408,19 @@ def run_simulation(domain_dict):
             for j in range(5):
                 # if K_array[j] is not in used_Ks, run simulation
                 if K_array[j] not in used_Ks and K_array[j]>0:
-                    run_pull(i, K_array[j], domain_dict["name"], domain_dict["sign"])
+                    if domain_dict["direction"] == "pull":
+                        sign=1
+                    elif domain_dict["direction"] == "push":
+                        sign=-1
+                    run_pull(i, K_array[j], domain_dict["name"], sign)
             print("Running simulations for domain " + domain_dict["name"] + " iteration " + str(i))
-            used_Ks += K_array
+            logging.info("Running simulations for domain " + domain_dict["name"] + " iteration " + str(i))
+            used_Ks.append(K_array)
             # remove duplicates from used_Ks
             used_Ks = np.unique(used_Ks)
 
             ## wait for jobs in mahti to finish
+            time.sleep(60*30)
 
             for j in range(5):
                 status(j, K_array[j], domain_dict["name"], i)
@@ -354,6 +435,7 @@ def run_simulation(domain_dict):
                 pullx = "pull_" + domain_dict["name"] + str(i) + "_" + str(best_K) + "x.xvg"
                 pull_plot(pullx, pullf)
                 print("The best force constant has been found.")
+                logging.info("The best force constant has been found.")
             else:
                 new_K(status_array, K_array)
 
@@ -364,6 +446,7 @@ def run_simulation(domain_dict):
                 ask_continue()
             else:
                 print("That was the last iteration. The program will stop now.")
+                logging.info("That was the last iteration. The program will stop now.")
 
             gro_file = "pull_eq_" + domain_dict["name"] + str(i) + ".gro"
 
@@ -371,3 +454,5 @@ def run_simulation(domain_dict):
 def main():
     for domain in cfg.domains:
         run_simulation(domain)
+
+main()

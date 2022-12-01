@@ -18,7 +18,7 @@ gro = "step7.gro"
 
 
 ############# Domain Info #############
-num_of_domains = 2
+num_of_domains = 1
 
 TM = {
     "name": "TM",
@@ -36,4 +36,4 @@ TK = {
     "K_max": 50,
 }
 
-domains=[TK,TM]
+domains=[TK]
