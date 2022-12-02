@@ -11,6 +11,7 @@ Functions:
     -prob needs change in file name/location
     -does sbatch file need time increase?
 -run_pull
+    -needs waiting between run and status
     -ok
 -status
     -ok
@@ -22,11 +23,12 @@ Functions:
     -ok
 -run_eq
     -needs waiting between eq and rmsd
+    -in pull_eq.mdp the domain needs to be changed or make mdp's for each domain
     -everything else ok
 -ask_continue
-
+    -ok
 -cleanup
-
+    -ok
 -run_simulation
 
 -main

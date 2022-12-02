@@ -13,6 +13,7 @@ Preparations:
 -mdp file
 -pre-processing: solvation, box, energy minimization, equilibration etc.
 -fill input.config
+-import gromacs and python in mahti
 
 Functions:
 
