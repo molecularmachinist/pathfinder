@@ -30,43 +30,26 @@ Outputs:
 
 
 TO DO:
--after submitting batch, exit program to wait for sim, after that analyze
+-check why reference distance is 17nm when grompping
+    -init might not always start at 0
+-make init and cont commands
+-in sbatch output file names
 -make demo
 -in grompp, check that the warning can be ignored
 -run multiples of each iterations
 -modules to import in config file
+-is used_Ks needed???
+-folder structure
 
 
-Work in progress: 
--LEARN: daemonize process i.e. make script not run on the terminal, but in the background
--check in the beginning, if start values are bigger/smaller than target values, depending on push/pull dir
--new_K function: when to reduce from 5 K's to 3?
-    -when K array has duplicate values
--look into if you should use array jobs 
 
 TO DO:
--how to make sure sims for duplicate K's wont be run?
--study if you should convert all code to python, would that be easier
-    -subprocesses work for running bash commands from inside python
-    -jupyter notebooks might be the answer to everything
-    -could start with converting some functions first:
-        -maybe status, check_if_done, new_K and other math needing functions
--run_eq:
-    -how to set up longer equilibration
--bash daemon for waiting
 -outputs such as plots, etc.
 -make a file system with folders and move between them
 -rsync files, warning for large files
 -documentation
 (-comments, README file, testing)
 
-IMPORTANT FOR PYTHON FILE:
--use anaconda prompt/terminal
--use test environment
--run with python analyze.py
-
--run eq and python etc work with wsl with conda
--run conda activate to activate base and run run_eq.sh normally
 
 Errors:
 

@@ -78,10 +78,6 @@ def read_config():
 
 
 
-read_config()
-
-
-
 
 
 def write_batch(file_name: string, sbatch: string):
@@ -222,17 +218,10 @@ def new_K(status_array, K_array):
     status_array = np.zeros((5))
     status_array[4] = 1
 
-    # error handling:
-    # dont run duplicate K's
-    # use an array of K's that have been run to check for duplicates
-    # if new K array contains old K duplicates, change them by adding 5
-
-    # check if the three middle values already exist in used_Ks
-
-    #????
 
     print('New K_array: ' + str(K_array))
     logging.info('New K_array: ' + str(K_array))
+    return K_array
 
 
 
@@ -283,6 +272,7 @@ def run_eq(domain: string, iter: int):
     bash_command("sbatch -W {}".format(file_name))
     print("Equilibration {} submitted".format(file_name))
     logging.info("Equilibration {} submitted".format(file_name))
+    sys.exit()
 
     #############
     ## WAITING ##
@@ -414,76 +404,174 @@ def analyze(file, domain):
 
 # This runs the entire series of simulations for the selected domain
 # This means the search for the best K, and then equilibration
-def run_simulation(domain_dict):
+def main():
+    for domain in cfg.domains:
+        domain_dict = cfg.domains[domain]
+        for i in cfg.imports:
+            bash_command("{}".format(i))
+        global init 
+        init = domain_dict['start']
+        global used_Ks
+        # iterations is the difference in the start and end values
+        iterations = abs(domain_dict['target'] - domain_dict['start'])
+        for i in range(int(iterations)):
+            # set 5 different K's
+            global K_array
+            K_array = np.array([5, 20, 30, 40, 50])
+            global status_array
+            res = 0
+            while res == 0:
+                for j in range(5):
+                    # if K_array[j] is not in used_Ks, run simulation
+                    if K_array[j] not in used_Ks and K_array[j]>0:
+                        if domain_dict["direction"] == "pull":
+                            sign=1
+                        elif domain_dict["direction"] == "push":
+                            sign=-1
+                        run_pull(i, K_array[j], domain_dict["name"], sign)
+                print("Running simulations for domain " + domain_dict["name"] + " iteration " + str(i))
+                logging.info("Running simulations for domain " + domain_dict["name"] + " iteration " + str(i))
+                np.append(used_Ks, K_array)
+                # remove duplicates from used_Ks
+                used_Ks = np.unique(used_Ks)
+
+                ## wait for jobs in mahti to finish
+                time.sleep(20)
+                print("The simulations should now be running. Wait for them to finish.")
+                print("The program will now stop running.")
+                sys.exit()
+
+                for j in range(5):
+                    status(j, K_array[j], domain_dict["name"], i)
+
+                res, best_K = check_if_done()
+                if res == 1:
+                    global gro_file
+                    gro_file = 'pull_' + domain_dict["name"] + str(i) + '_' + str(best_K) + '.gro'
+                    global route
+                    route += domain_dict["name"] + "/iteration_" + str(i) + "/K_" + str(best_K)
+                    pullf = "pull_" + domain_dict["name"] + str(i) + "_" + str(best_K) + "f.xvg"
+                    pullx = "pull_" + domain_dict["name"] + str(i) + "_" + str(best_K) + "x.xvg"
+                    pull_plot(pullx, pullf)
+                    print("The best force constant has been found.")
+                    logging.info("The best force constant has been found.")
+                else:
+                    new_K(status_array, K_array)
+                    
+
+            gro_file = "pull_" + domain_dict["name"] + str(i) + ".gro"
+            run_eq(domain_dict["name"], i)
+
+            if i != int(iterations):
+                #cleanup()
+                ask_continue()
+            else:
+                print("That was the last iteration. The program will stop now.")
+                logging.info("That was the last iteration. The program will stop now.")
+
+            gro_file = "pull_eq_" + domain_dict["name"] + str(i) + ".gro"
+
+
+
+
+# Run simulations for the first domain first iteration
+def init():
+    read_config()
     for i in cfg.imports:
         bash_command("{}".format(i))
+    run_simulation(0, cfg.domains[0], np.array([5, 20, 30, 40, 50]))
+    
+
+
+def run_simulation(iter: int, dom: str, K_array: np.array):
+    domain_dict = dom
     global init 
     init = domain_dict['start']
     global used_Ks
-    # iterations is the difference in the start and end values
-    iterations = abs(domain_dict['target'] - domain_dict['start'])
-    for i in range(int(iterations)):
-        # set 5 different K's
-        global K_array
-        K_array = np.array([5, 20, 30, 40, 50])
-        global status_array
-        res = 0
-        while res == 0:
-            for j in range(5):
-                # if K_array[j] is not in used_Ks, run simulation
-                if K_array[j] not in used_Ks and K_array[j]>0:
-                    if domain_dict["direction"] == "pull":
-                        sign=1
-                    elif domain_dict["direction"] == "push":
-                        sign=-1
-                    run_pull(i, K_array[j], domain_dict["name"], sign)
-            print("Running simulations for domain " + domain_dict["name"] + " iteration " + str(i))
-            logging.info("Running simulations for domain " + domain_dict["name"] + " iteration " + str(i))
-            np.append(used_Ks, K_array)
-            # remove duplicates from used_Ks
-            used_Ks = np.unique(used_Ks)
+    for j in range(5):
+        if K_array[j] not in used_Ks and K_array[j]>0:
+            if domain_dict["direction"] == "pull":
+                sign=1
+            elif domain_dict["direction"] == "push":
+                sign=-1
+            run_pull(iter, K_array[j], domain_dict["name"], sign)
+    print("Running simulations for domain " + domain_dict["name"] + " iteration " + str(iter))
+    logging.info("Running simulations for domain " + domain_dict["name"] + " iteration " + str(iter))
+    np.append(used_Ks, K_array)
+    # remove duplicates from used_Ks
+    used_Ks = np.unique(used_Ks)
 
-            ## wait for jobs in mahti to finish
-            time.sleep(20)
-            print("The simulations should now be running. Wait for them to finish.")
-            print("The program will now stop running.")
-            sys.exit()
+    ## wait for jobs in mahti to finish
+    time.sleep(10)
+    print("The simulations should now be running. Wait for them to finish.")
+    print("The program will now stop running.")
+    sys.exit()
 
-            for j in range(5):
-                status(j, K_array[j], domain_dict["name"], i)
 
-            res, best_K = check_if_done()
-            if res == 1:
-                global gro_file
-                gro_file = 'pull_' + domain_dict["name"] + str(i) + '_' + str(best_K) + '.gro'
-                global route
-                route += domain_dict["name"] + "/iteration_" + str(i) + "/K_" + str(best_K)
-                pullf = "pull_" + domain_dict["name"] + str(i) + "_" + str(best_K) + "f.xvg"
-                pullx = "pull_" + domain_dict["name"] + str(i) + "_" + str(best_K) + "x.xvg"
-                pull_plot(pullx, pullf)
-                print("The best force constant has been found.")
-                logging.info("The best force constant has been found.")
-            else:
-                new_K(status_array, K_array)
-                
+# Continue simulations
+# First check status and check if done
+def cont(iter: int, dom: str, type: int):
+    domain_dict = cfg.domains[dom]
 
-        gro_file = "pull_" + domain_dict["name"] + str(i) + ".gro"
-        run_eq(domain_dict["name"], i)
+    # type == 0 means that it's continuing from the pull simulations
+    if type == 0:
+        for j in range(5):
+            status(j, K_array[j], domain_dict["name"], iter)
 
-        if i != int(iterations):
-            #cleanup()
-            ask_continue()
+        res, best_K = check_if_done()
+        if res == 1:
+            global gro_file
+            gro_file = 'pull_' + domain_dict["name"] + str(iter) + '_' + str(best_K) + '.gro'
+            global route
+            route += domain_dict["name"] + "/iteration_" + str(iter) + "/K_" + str(best_K)
+            pullf = "pull_" + domain_dict["name"] + str(iter) + "_" + str(best_K) + "f.xvg"
+            pullx = "pull_" + domain_dict["name"] + str(iter) + "_" + str(best_K) + "x.xvg"
+            pull_plot(pullx, pullf)
+            print("The best force constant has been found.")
+            logging.info("The best force constant has been found.")
+            gro_file = "pull_" + domain_dict["name"] + str(iter) + ".gro"
         else:
-            print("That was the last iteration. The program will stop now.")
-            logging.info("That was the last iteration. The program will stop now.")
+            K_array = new_K(status_array, K_array)
+            run_simulation(iter, dom, K_array)
 
-        gro_file = "pull_eq_" + domain_dict["name"] + str(i) + ".gro"
+        # assume that the sim was successful for some K
+        # ask if the user wants to run equilibration
+        print("The best force constant has been found.")
+        def ask_eq():
+            answer = input("Do you want to run equilibration? (y/n)")
+            if answer == "y":
+                print("Tou answered yes. Continuing to equilibration...")
+                logging.info('User chose to continue to equilibration.')
+                run_eq(domain_dict["name"], iter)
+            elif answer == "n":
+                print("You answered no. Exiting...")
+                logging.info('User chose not to continue. Exiting program.')
+                sys.exit()
+            else:
+                print("Invalid answer. Please try again.")
+                ask_eq()
+        ask_eq()
+    
+    # type == 1 means that it's continuing from the equilibration
+    if type == 1:
+        # check if the equilibration is done
+        file_name = 'pull_eq_' + str(dom) + str(iter)
+        command="gmx_mpi rms -s {}.tpr -f {}.xtc -o {}_rmsd.xvg -tu ns".format(file_name, file_name, file_name)
+        subprocess.run([command], input="4 4", text=True, shell=True, executable='/bin/bash')
+
+        rmsd_xvg_file = file_name + '_rmsd.xvg'
+        # from analyze.py use function analyze
+        result=analyze(rmsd_xvg_file, dom)
+        print("Result: ", result)
+        if result == 0:
+            print("Running equilibration again with longer wall time")
+            logging.info("Running equilibration again with longer wall time")
+            wall_time()
+            run_eq(dom, iter)
+        else:
+            print("Equilibration was successful")
+            logging.info("Equilibration was successful")
 
 
-
-# Runs simulations for each domain one at a time
-def main():
-    for domain in cfg.domains:
-        run_simulation(domain)
-
-main()
+if __name__ == '__main__':
+    globals()[sys.argv[1]]()
