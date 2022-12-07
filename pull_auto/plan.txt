@@ -29,29 +29,34 @@ Outputs:
 -movie of concat trajectories
 
 
+
 ################ CHANGING TO PYTHON ################
 Small files:
 -input !
 -sbatch !
 -error handling
--config !
+-config (WIP)
+    -import start for each domain separately in run_simulation
 Pull_script:
 -read_config (no need for own function, implement on pull_script, calc iterations and add to dict)
--write_batch (WIP) (remove previous run from sbatch file, and how to increase wall time)
--run_pull ! 
+-write_batch !
+-run_pull (WIP)
+    - how to wait for jobs to finish
 -status !
--new_K (WIP) (what to do with duplicate Ks???)
+-new_K !
 -check_if_done !
--run_eq (WIP) (how to wait for sims?)
+-run_eq (WIP) 
+    - how to wait for jobs to finish
 -ask_continue !
 -cleanup (WIP) (need to figure out which files to remove)
 -run_simulation
+    -when to connect to mahti?
 
 ! = done
 
 Things to add:
--cleanup
--error handling ! (fine for now) 
+-cleanup (WIP) (determine removable files when testing)
+-error handling ! (fine for now, prob need more tests) 
 -log events ! (fine for now)
 
 
@@ -68,8 +73,6 @@ Things to copy/learn from Santeri's functional sampling tool
 Work in progress: 
 -LEARN: daemonize process i.e. make script not run on the terminal, but in the background
 -check in the beginning, if start values are bigger/smaller than target values, depending on push/pull dir
--new_K function: when to reduce from 5 K's to 3?
-    -when K array has duplicate values
 -testing
     -left off testing pull_script in mahti, but haven't gotten it to run
     -only makes tpr files of K=5 and not others
