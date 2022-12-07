@@ -1,37 +1,48 @@
 #!/usr/bin/env python3
-# Basically pull_script.sh but python
+
 
 # Imports
 import subprocess
 import string
 import config as cfg
 import numpy as np
-from analyze import *
 import sys
 import logging
 import time
+import os
+import matplotlib.pyplot as plt
+from scipy.stats import linregress
+import math
+
+
 
 
 ## LOGGING
 logging.basicConfig(filename='log_pathfinder.log', level=logging.DEBUG)
 # clear log file before running
-open('log_pathfinder.log', 'w').close()
+#open('log_pathfinder.log', 'w').close()
 logging.info('Starting program')
 
 
-# Read config
+
+
+# Define global variables
 global gro_file
 gro_file = cfg.gro
 global used_Ks
 used_Ks = []
 global route
 route = []
+global status_array
+status_array = np.zeros((5))
+global K_array
 
 
 
+
+## error handling for inputs
+## stop script if input is incorrect
 def read_config():
-    ## error handling for inputs
-    ## stop script if input is incorrect
 
     # check that index file has ndx suffix
     if cfg.ndx[-4:] != '.ndx':
@@ -70,16 +81,12 @@ def read_config():
 read_config()
 
 
-# Define variables
-status_array = np.zeros((5))
-K_array = np.array([5, 10, 15, 20, 25])
 
 
 
 def write_batch(file_name: string, sbatch: string):
     # remove last line from sbatch.sh
     command = 'srun gmx_mpi mdrun -v -deffnm {} -pf {}f.xvg -px {}x.xvg'.format(file_name, file_name, file_name)
-    # delete last line in sbatch.sh
     with open(sbatch, 'r') as f:
         lines = f.readlines()
     with open(sbatch, 'w') as f:
@@ -115,6 +122,9 @@ def wall_time(mdp_file: string):
 def bash_command(cmd):
     subprocess.Popen(cmd, shell=True, executable='/bin/bash', stdin=None, stdout=None, stderr=None)
 
+
+
+# Set up and run a pulling simulation
 def run_pull(iter: int, K: int, domain: string, sign: int):
     file_name = 'pull_' + str(domain) + str(iter) + '_' + str(K)
     mdp_file = 'pull_' + str(domain) + '.mdp'
@@ -136,35 +146,38 @@ def run_pull(iter: int, K: int, domain: string, sign: int):
 
 
 
-
+# Determine status (0 or 1) for each K/simulation
+# 0 means K wasn't able to pull/push, and 1 means
 def status(idx: int, K: int, domain: string, iter: int):
     file_name = 'pull_' + str(domain) + str(iter) + '_' + str(K) + 'x.xvg'
-    # file_name = 'pull_TK2_30x.xvg'
-    # get 18th line from file
-    with open(file_name, 'r') as f:
-        for i, line in enumerate(f):
-            if i == 17:
-                line = line.split()
-                # get 2nd column from line
-                first = line[1]
-                #print(first)
-    # get last line from file
-    with open(file_name, 'r') as f:
-        for i, line in enumerate(f):
-            pass
-        line = line.split()
-        # get 2nd column from line
-        last = line[1]
-        #print(last)
-    if abs(float(last) - float(first)) >= 0.9:
-        print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
-        logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
-        status_array[idx] = 1
-        return 1
+    if os.path.exists(file_name):
+        with open(file_name, 'r') as f:
+            for i, line in enumerate(f):
+                if i == 17:
+                    line = line.split()
+                    # get 2nd column from line
+                    first = line[1]
+                    #print(first)
+        # get last line from file
+        with open(file_name, 'r') as f:
+            for i, line in enumerate(f):
+                pass
+            line = line.split()
+            # get 2nd column from line
+            last = line[1]
+            #print(last)
+        if abs(float(last) - float(first)) >= 0.9:
+            print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
+            logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
+            status_array[idx] = 1
+            return 1
+        else:
+            print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
+            logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
+            return 0
     else:
-        print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
-        logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
-        return 0
+        print('The xvg file does not exist')
+        logging.error('The xvg file does not exist')
 
 
 
@@ -183,6 +196,7 @@ def new_K(status_array, K_array):
     if status_array[4] == 0:
         print('None of the Ks were successful. Lets double K max.')
         logging.info('None of the Ks were successful. Lets double K max.')
+        K_array[0] = K_array[4] + 5
         K_array[4] = K_array[4] * 2
     else:
         print('K=' + str(K_array[idx]) + ' was successful.')
@@ -195,12 +209,13 @@ def new_K(status_array, K_array):
     K_array[2] = round(K_array[2]/5)*5
     K_array[1] = (K_array[2] - K_array[0])/2
     K_array[1] = round(K_array[1]/5)*5
+    K_array[1] = K_array[0] + K_array[1]
     K_array[3] = (K_array[4] - K_array[2])/2
     K_array[3] = round(K_array[3]/5)*5
     K_array[3] = K_array[2] + K_array[3]
     global used_Ks
     # append used_Ks with the new K_array
-    used_Ks.append(K_array)
+    np.append(used_Ks, K_array)
     # remove duplicates from used_Ks
     used_Ks = np.unique(used_Ks)
     
@@ -224,6 +239,8 @@ def new_K(status_array, K_array):
 
 
 def check_if_done():
+    global status_array
+    global K_array
     if status_array[1] == 1 and K_array[1] - K_array[0] <= 5:
         print('The best force constant has been found. The force constant is ' + str(K_array[1]) + '.')
         logging.info('The best force constant has been found. The force constant is ' + str(K_array[1]) + '.')
@@ -238,7 +255,7 @@ def check_if_done():
         return 1,K_array[3]
     else:
         print('The best force constant has not yet been found.')
-        return 0
+        return 0,0
 
 
 
@@ -261,8 +278,8 @@ def run_eq(domain: string, iter: int):
     lines.append("pull_coord2_init = " + str(range_low))
     open(mdp_file, 'w').writelines(lines)
 
-    bash_command("gmx_mpi grompp -f pull_eq_{}.mdp -o pull_eq_{}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(domain, file_name, gro_file, gro_file, cfg.ndx))
-    write_batch(file_name)
+    bash_command("gmx_mpi grompp -f pull_eq.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(file_name, gro_file, gro_file, cfg.ndx))
+    write_batch(file_name, 'sbatch.sh')
     bash_command("sbatch -W {}".format(file_name))
     print("Equilibration {} submitted".format(file_name))
     logging.info("Equilibration {} submitted".format(file_name))
@@ -290,7 +307,7 @@ def run_eq(domain: string, iter: int):
 
 
 
-
+# Ask if the user wants to continue to the next iteration of the simulation
 def ask_continue():
     print("The first iteration of pulling and equilibration has finished.")
     print("Please check the pullf and pullx files, aswell as the trajectory files and make sure everything looks correct.")
@@ -308,25 +325,28 @@ def ask_continue():
 
 
 
-def cleanup():
-    print("Removing files from the unsuccessful simulations is recommended.")
-    # ask user if they want to remove files
-    answer = input("Do you want to remove files? (y/n)")
-    if answer == "y":
-        print("Removing files...")
-        logging.info('User chose to remove files.')
-        # remove files
-    if answer == "n":
-        print("Not removing files.")
-        # do not remove files
-    else:    
-        print("Invalid answer. Please try again.")
-        cleanup()
+# Unnecessary #
+
+# # Ask the user if they want to remove unnecessary files
+# def cleanup():
+#     print("Removing files from the unsuccessful simulations is recommended.")
+#     # ask user if they want to remove files
+#     answer = input("Do you want to remove files? (y/n)")
+#     if answer == "y":
+#         print("Removing files...")
+#         logging.info('User chose to remove files.')
+#         # remove files
+#     if answer == "n":
+#         print("Not removing files.")
+#         # do not remove files
+#     else:    
+#         print("Invalid answer. Please try again.")
+#         cleanup()
 
 
 
 
-
+# Make plots for pull COM and pull force
 def pull_plot(pullx_file, pullf_file):
     x,y = np.loadtxt(pullx_file,comments=["@","#"],unpack=True)
     n=math.ceil(0.8*len(x))
@@ -360,7 +380,7 @@ def pull_plot(pullx_file, pullf_file):
 
 
 
-
+# Analyze the rmsd plot and determine if the equilibration was successful
 def analyze(file, domain):
     x,y = np.loadtxt(file,comments=["@","#"],unpack=True)
     n=math.ceil(0.8*len(x))
@@ -392,8 +412,11 @@ def analyze(file, domain):
         return 1
 
 
-
+# This runs the entire series of simulations for the selected domain
+# This means the search for the best K, and then equilibration
 def run_simulation(domain_dict):
+    for i in cfg.imports:
+        bash_command("{}".format(i))
     global init 
     init = domain_dict['start']
     global used_Ks
@@ -401,8 +424,9 @@ def run_simulation(domain_dict):
     iterations = abs(domain_dict['target'] - domain_dict['start'])
     for i in range(int(iterations)):
         # set 5 different K's
+        global K_array
         K_array = np.array([5, 20, 30, 40, 50])
-
+        global status_array
         res = 0
         while res == 0:
             for j in range(5):
@@ -415,12 +439,15 @@ def run_simulation(domain_dict):
                     run_pull(i, K_array[j], domain_dict["name"], sign)
             print("Running simulations for domain " + domain_dict["name"] + " iteration " + str(i))
             logging.info("Running simulations for domain " + domain_dict["name"] + " iteration " + str(i))
-            used_Ks.append(K_array)
+            np.append(used_Ks, K_array)
             # remove duplicates from used_Ks
             used_Ks = np.unique(used_Ks)
 
             ## wait for jobs in mahti to finish
-            time.sleep(60*30)
+            time.sleep(20)
+            print("The simulations should now be running. Wait for them to finish.")
+            print("The program will now stop running.")
+            sys.exit()
 
             for j in range(5):
                 status(j, K_array[j], domain_dict["name"], i)
@@ -438,19 +465,23 @@ def run_simulation(domain_dict):
                 logging.info("The best force constant has been found.")
             else:
                 new_K(status_array, K_array)
+                
 
-            run_eq(domain_dict["name"])
+        gro_file = "pull_" + domain_dict["name"] + str(i) + ".gro"
+        run_eq(domain_dict["name"], i)
 
-            if i != domain_dict["iterations"]:
-                cleanup()
-                ask_continue()
-            else:
-                print("That was the last iteration. The program will stop now.")
-                logging.info("That was the last iteration. The program will stop now.")
+        if i != int(iterations):
+            #cleanup()
+            ask_continue()
+        else:
+            print("That was the last iteration. The program will stop now.")
+            logging.info("That was the last iteration. The program will stop now.")
 
-            gro_file = "pull_eq_" + domain_dict["name"] + str(i) + ".gro"
+        gro_file = "pull_eq_" + domain_dict["name"] + str(i) + ".gro"
 
 
+
+# Runs simulations for each domain one at a time
 def main():
     for domain in cfg.domains:
         run_simulation(domain)

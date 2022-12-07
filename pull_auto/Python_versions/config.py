@@ -8,7 +8,8 @@ User modifies
 remote_dir = "/scratch/project_2006125/vanilja/pathfinder"
 # remote name
 remote_name = "mahti"
-
+imports = (['module load gromacs',
+        'module load python-data'])
 
 ############# Input Files #############
 ndx = "index.ndx"

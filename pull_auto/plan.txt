@@ -29,53 +29,19 @@ Outputs:
 -movie of concat trajectories
 
 
-
-################ CHANGING TO PYTHON ################
-Small files:
--input !
--sbatch !
--error handling
--config (WIP)
-    -import start for each domain separately in run_simulation
-Pull_script:
--read_config (no need for own function, implement on pull_script, calc iterations and add to dict)
--write_batch !
--run_pull (WIP)
-    - how to wait for jobs to finish
--status !
--new_K !
--check_if_done !
--run_eq (WIP) 
-    - how to wait for jobs to finish
--ask_continue !
--cleanup (WIP) (need to figure out which files to remove)
--run_simulation
-    -when to connect to mahti?
-
-! = done
-
-Things to add:
--cleanup (WIP) (determine removable files when testing)
--error handling ! (fine for now, prob need more tests) 
--log events ! (fine for now)
-
-
-Things to copy/learn from Santeri's functional sampling tool
--how to change from bash python
--how to work with supercomputers
--cleaning up
--how to daemonize/wait for jobs to finish
--config file
--sbatch template
-
+TO DO:
+-after submitting batch, exit program to wait for sim, after that analyze
+-make demo
+-in grompp, check that the warning can be ignored
+-run multiples of each iterations
+-modules to import in config file
 
 
 Work in progress: 
 -LEARN: daemonize process i.e. make script not run on the terminal, but in the background
 -check in the beginning, if start values are bigger/smaller than target values, depending on push/pull dir
--testing
-    -left off testing pull_script in mahti, but haven't gotten it to run
-    -only makes tpr files of K=5 and not others
+-new_K function: when to reduce from 5 K's to 3?
+    -when K array has duplicate values
 -look into if you should use array jobs 
 
 TO DO:
@@ -87,14 +53,8 @@ TO DO:
         -maybe status, check_if_done, new_K and other math needing functions
 -run_eq:
     -how to set up longer equilibration
-    -time needs to be changed in mdp file
-        -code needs to increase nsteps in mdp file DONE
-        -and slurm time (this is more difficult)
--function for removing unnecessary files
 -bash daemon for waiting
 -outputs such as plots, etc.
--should new K always be 5, unless the range is so small that its not possible to get
-5 new values
 -make a file system with folders and move between them
 -rsync files, warning for large files
 -documentation
