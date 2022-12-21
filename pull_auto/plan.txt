@@ -1,12 +1,6 @@
 PATHFINDER
 This is the plan for coding the pathfinder tool.
 
-cd pathfinder/pull_auto/small_scripts
-
-Scripts/functions:
--each output has own MDAnalysis function
--input reader function
--log reader 
 
 Inputs (config file):
 -delta x, for example 1nm
@@ -30,17 +24,20 @@ Outputs:
 
 
 TO DO:
--check why reference distance is 17nm when grompping
-    -init might not always start at 0
--make init and cont commands
--in sbatch output file names
 -make demo
 -in grompp, check that the warning can be ignored
 -run multiples of each iterations
--modules to import in config file
--is used_Ks needed???
--folder structure
+-folder structure for eq
 
+
+20.12.
+-for some reason the 30 and 30 didnt pull even though previously did
+    -multiples of sims need to be done so that prob solves it
+-remember to push to github
+
+21.12
+-remember to push to github
+-prob: used_Ks doesnt contain 30 and 40
 
 
 TO DO:

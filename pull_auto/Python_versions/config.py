@@ -8,8 +8,6 @@ User modifies
 remote_dir = "/scratch/project_2006125/vanilja/pathfinder"
 # remote name
 remote_name = "mahti"
-imports = (['module load gromacs',
-        'module load python-data'])
 
 ############# Input Files #############
 ndx = "index.ndx"
@@ -32,9 +30,11 @@ TM = {
 TK = {
     "name": "TK",
     "direction": "pull",
-    "start": 9.6,
-    "target": 8.6,
+    "start": 4.3,
+    "target": 5.3,
     "K_max": 50,
 }
 
 domains=[TK]
+
+
