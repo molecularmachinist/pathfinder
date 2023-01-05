@@ -84,7 +84,7 @@ def read_config():
 
 def write_batch(file_name: string, sbatch: string):
     # remove last line from sbatch.sh
-    command = 'srun gmx_mpi mdrun -v -deffnm {} -pf {}f.xvg -px {}x.xvg'.format(file_name, file_name, file_name)
+    command = 'srun gmx_mpi mdrun -deffnm {} -pf {}f.xvg -px {}x.xvg'.format(file_name, file_name, file_name)
     with open(sbatch, 'r') as f:
         lines = f.readlines()
     with open(sbatch, 'w') as f:
@@ -136,7 +136,7 @@ def run_pull(iter: int, K: int, domain: str):
     lines[-2] = "pull_coord1_init = " + str(start)
     open(mdp_file, 'w').writelines(lines)
 
-    bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(domain, file_name, cfg.gro, cfg.gro, cfg.ndx))
+    bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, cfg.gro, cfg.gro, cfg.ndx, cfg.maxwarn))
     write_batch(file_name, batch)
     bash_command("sbatch -J {} -o {} {}".format(jobname, output, batch))
     print("Running {} with K = {}".format(file_name, K))
@@ -144,7 +144,7 @@ def run_pull(iter: int, K: int, domain: str):
     bash_command("cd iteration{}".format(iter))
     # if directory doesn't exist, create it
     if not os.path.exists("K={}".format(K)):
-        bash_command("mkdir K={}".format(K))
+        bash_command("mkdir -p K={}".format(K))
     bash_command("cd ..")
     bash_command("mv pull_{}{}_{}.* iteration{}/K={}".format(domain,iter,K,iter,K))
     time.sleep(7)
@@ -243,21 +243,25 @@ def check_if_done():
     # go through status_dict
     # sort status_dict by key
     global status_array
-    global status_dict
+    g = open("status_dict.json", "r")
+    st_dict = json.load(g)
+    status_dict = st_dict['status_dict']
+    status_dict = dict(status_dict)
+    status_dict = {int(k):v for k,v in status_dict.items()}
     status_dict = {k: v for k, v in sorted(status_dict.items(), key=lambda item: item[0])}
+    print(status_dict)
     for key, value in status_dict.items():
+        # if 5 is the best K
         if value == 1 and (key - 5) <= 0:
             print('The best force constant has been found. The force constant is ' + str(key) + '.')
             logging.info('The best force constant has been found. The force constant is ' + str(key) + '.')
             return 1,key
         elif value == 1:
-            if status_dict[key-5].exists():
-                if status_dict[key-5] == 0:
-                    print('The best force constant has been found. The force constant is ' + str(key) + '.')
-                    logging.info('The best force constant has been found. The force constant is ' + str(key) + '.')
-                    return 1,key
-        else:
-            return 0,0
+            if status_dict[key-5] == 0:
+                print('The best force constant has been found. The force constant is ' + str(key) + '.')
+                logging.info('The best force constant has been found. The force constant is ' + str(key) + '.')
+                return 1,key
+    return 0,0
 
 
     # if status_array[1] == 1 and K_array[1] - K_array[0] <= 5:
@@ -280,30 +284,35 @@ def check_if_done():
 
 
 def run_eq(domain: string, iter: int):
+    global gro_file
     file_name = 'pull_eq_' + str(domain) + str(iter)
     mdp_file = 'pull_eq.mdp'
+    jobname = 'eq_' + str(domain)
+    output = 'eq_' + str(domain)
 
     bash_command("cd iteration{}".format(iter))
-    bash_command("mkdir eq")
+    bash_command("mkdir -p eq")
     bash_command("cd ..")
 
     #delete last 2 lines of mdp file
     lines = open(mdp_file, 'r').readlines()
     del lines[-2:]
 
-    global start
-    current_coord = start
+    f = open("start.json", "r")
+    start = json.load(f)
+    current_coord = start['start']
     range_high = current_coord + 0.25
     range_low = current_coord - 0.25
 
     #insert new lines into mdp file
-    lines.append("pull_coord1_init = " + str(range_high))
+    lines.append("pull_coord1_init = " + str(range_high) + "\n")
     lines.append("pull_coord2_init = " + str(range_low))
     open(mdp_file, 'w').writelines(lines)
 
     bash_command("gmx_mpi grompp -f pull_eq.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(file_name, gro_file, gro_file, cfg.ndx))
+    time.sleep(7)
     write_batch(file_name, 'sbatch.sh')
-    bash_command("sbatch -W {}".format(file_name))
+    bash_command("sbatch -J {} -o {} sbatch.sh".format(jobname, output))
     print("Equilibration {} submitted".format(file_name))
     logging.info("Equilibration {} submitted".format(file_name))
     sys.exit()
@@ -372,6 +381,7 @@ def ask_continue():
 
 # Make plots for pull COM and pull force
 def pull_plot(pullx_file, pullf_file):
+    bash_command("mkdir -p outputs ")
     x,y = np.loadtxt(pullx_file,comments=["@","#"],unpack=True)
     n=math.ceil(0.8*len(x))
     x=x[-n:]
@@ -384,7 +394,8 @@ def pull_plot(pullx_file, pullf_file):
     ax.set_ylabel("COM")
     ax.set_title("Pull COM")
     figure.tight_layout()
-    plt.savefig('../outputs/{}.png'.format(pullx_file))
+    pullx_file = pullx_file[:-4]
+    plt.savefig('outputs/{}.png'.format(pullx_file))
     #plt.show()
 
     x,y = np.loadtxt(pullf_file,comments=["@","#"],unpack=True)
@@ -399,7 +410,8 @@ def pull_plot(pullx_file, pullf_file):
     ax.set_ylabel("Pull force")
     ax.set_title("Pull force for COM pulling")
     figure.tight_layout()
-    plt.savefig('../outputs/{}.png'.format(pullf_file))
+    pullf_file = pullf_file[:-4]
+    plt.savefig('outputs/{}.png'.format(pullf_file))
     #plt.show()
 
 
@@ -518,7 +530,11 @@ def init():
        json.dump(K_dict, f, indent=4)
     with open("status_dict.json", "w") as f:
        json.dump(status_dict, f, indent=4)
+    start_dict = {"start": cfg.domains[0]["start"]}
+    with open("start.json", "w") as f:
+       json.dump(start_dict, f, indent=4)
     run_simulation(0, cfg.domains[0], K_array)
+    
     
     
 
@@ -529,7 +545,7 @@ def run_simulation(iter: int, dom: str, K_array: np.array):
     global start
     # if directory doesnt exist, create it
     if not os.path.exists("iteration{}".format(iter)):
-        bash_command("mkdir iteration{}".format(iter))
+        bash_command("mkdir -p iteration{}".format(iter))
     for j in range(len(K_array)):
         if K_array[j]>0:
             if domain_dict["direction"] == "pull":
@@ -580,6 +596,7 @@ def contpull(iter: int, dom: str, idx: int):
     #print(status_dict)
 
     res, best_K = check_if_done()
+    #print("res: " + str(res) + " best_K: " + str(best_K))
     if res == 1:
         global gro_file
         gro_file = 'pull_' + domain_dict + str(iter) + '_' + str(best_K) + '.gro'
@@ -590,17 +607,22 @@ def contpull(iter: int, dom: str, idx: int):
         pull_plot(pullx, pullf)
         print("The best force constant has been found.")
         logging.info("The best force constant has been found.")
-        gro_file = "pull_" + domain_dict + str(iter) + ".gro"
+        start_dict = {"start": cfg.domains[0]["start"]}
+        with open("start.json", "w") as f:
+            json.dump(start_dict, f, indent=4)
+        f = open("start.json", "r")
+        start = json.load(f)
+        current_coord = start['start'] + 1.0
+        start_dict = {"start": current_coord}
+        with open("start.json", "w") as f:
+            json.dump(start_dict, f, indent=4)
+        bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, gro_file))
     else:
         print("The best force constant has not been found yet.")
         K_array = new_K(status_array, K_array)
         K_dict = {"K_array": K_array.tolist()}
         st_dict = {"status_dict": status_dict}
         print("Used Ks: {}".format(used_Ks))
-        with open("K_array.json", "w") as f:
-            json.dump(K_dict, f, indent=4)
-        with open("status_dict.json", "w") as f:
-            json.dump(st_dict, f, indent=4)
         # remove duplicates from K_array
         K_array_unique = np.unique(K_array)
         print("K_array_unique: {}".format(K_array_unique))
@@ -615,6 +637,10 @@ def contpull(iter: int, dom: str, idx: int):
             if answer == "y":
                 print("You answered yes. Continuing to simulations...")
                 logging.info('User chose to continue to simulations.')
+                with open("K_array.json", "w") as f:
+                    json.dump(K_dict, f, indent=4)
+                with open("status_dict.json", "w") as f:
+                    json.dump(st_dict, f, indent=4)
                 run_simulation(iter, cfg.domains[int(idx)], K_filtered)
             elif answer == "n":
                 print("You answered no. Exiting...")
@@ -631,9 +657,12 @@ def contpull(iter: int, dom: str, idx: int):
     def ask_eq():
         answer = input("Do you want to run equilibration? (y/n)")
         if answer == "y":
-            print("Tou answered yes. Continuing to equilibration...")
+            print("You answered yes. Continuing to equilibration...")
             logging.info('User chose to continue to equilibration.')
-            run_eq(domain_dict["name"], iter)
+            start_dict = {"start": 5.3}
+            with open("start.json", "w") as f:
+                json.dump(start_dict, f, indent=4)
+            run_eq(domain_dict, iter)
         elif answer == "n":
             print("You answered no. Exiting...")
             logging.info('User chose not to continue. Exiting program.')

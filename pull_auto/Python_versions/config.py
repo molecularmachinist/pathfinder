@@ -14,6 +14,7 @@ ndx = "index.ndx"
 topol = "topol.top"
 mdp = "pull_TM.mdp"
 gro = "step7.gro"
+maxwarn = 1
 
 
 ############# Domain Info #############
