@@ -28,15 +28,15 @@ logging.info('Starting program')
 
 
 # Define global variables
-global gro_file
-gro_file = cfg.gro
-global used_Ks
-used_Ks = np.array([])
-global route
-route = []
-global status_array
-status_array = np.zeros((5))
-global K_array
+#global gro_file
+#gro_file = cfg.gro
+# global used_Ks
+# used_Ks = np.array([])
+# global route
+# route = []
+# global status_array
+# status_array = np.zeros((5))
+# global K_array
 
 
 
@@ -114,9 +114,6 @@ def wall_time(mdp_file: string):
 
 
 
-
-
-
 def bash_command(cmd):
     subprocess.Popen(cmd, shell=True, executable='/bin/bash', stdin=None, stdout=None, stderr=None)
 
@@ -136,7 +133,10 @@ def run_pull(iter: int, K: int, domain: str):
     lines[-2] = "pull_coord1_init = " + str(start)
     open(mdp_file, 'w').writelines(lines)
 
-    bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, cfg.gro, cfg.gro, cfg.ndx, cfg.maxwarn))
+    f = open("gro_file.json", "r")
+    gro_dict = json.load(f)
+    gro_file = gro_dict['gro_file']
+    bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, gro_file, gro_file, cfg.ndx, cfg.maxwarn))
     write_batch(file_name, batch)
     bash_command("sbatch -J {} -o {} {}".format(jobname, output, batch))
     print("Running {} with K = {}".format(file_name, K))
@@ -284,7 +284,9 @@ def check_if_done():
 
 
 def run_eq(domain: string, iter: int):
-    global gro_file
+    f = open("gro_file.json", "r")
+    gro_dict = json.load(f)
+    gro_file = gro_dict['gro_file']
     file_name = 'pull_eq_' + str(domain) + str(iter)
     mdp_file = 'pull_eq.mdp'
     jobname = 'eq_' + str(domain)
@@ -519,21 +521,28 @@ def analyze(file, domain):
 
 
 
-# Run simulations for the first domain first iteration
-def init():
+# Start a new iteration
+def init(iter: int, idx: int):
     read_config()
-    global K_array
+    # for first iteration
+    if iter == 0:
+        gro_dict = {"gro_file": cfg.gro}
+        with open("gro_file.json", "w") as f:
+            json.dump(gro_dict, f, indent=4)
+        start_dict = {"start": cfg.domains[0]["start"]}
+        with open("start.json", "w") as f:
+            json.dump(start_dict, f, indent=4)
     K_array = np.array([5, 20, 30, 40, 50])
     K_dict = {"K_array": K_array.tolist()}
     status_dict = {"status_dict": []}
+    used_Ks = {"used_Ks": []}
+    with open("used_Ks.json", "w") as f:
+       json.dump(used_Ks, f, indent=4)
     with open("K_array.json", "w") as f:
        json.dump(K_dict, f, indent=4)
     with open("status_dict.json", "w") as f:
        json.dump(status_dict, f, indent=4)
-    start_dict = {"start": cfg.domains[0]["start"]}
-    with open("start.json", "w") as f:
-       json.dump(start_dict, f, indent=4)
-    run_simulation(0, cfg.domains[0], K_array)
+    run_simulation(iter, cfg.domains[int(idx)], K_array)
     
     
     
@@ -541,7 +550,6 @@ def init():
 
 def run_simulation(iter: int, dom: str, K_array: np.array):
     domain_dict = dom
-    global used_Ks
     global start
     # if directory doesnt exist, create it
     if not os.path.exists("iteration{}".format(iter)):
@@ -552,11 +560,18 @@ def run_simulation(iter: int, dom: str, K_array: np.array):
                 sign=1.0
             elif domain_dict["direction"] == "push":
                 sign=-1.0
-            start = domain_dict["start"]
+            f = open("start.json", "r")
+            start_dict = json.load(f)
+            start = start_dict['start']
             start = float(start) + float(iter)*1.0*sign + 1.5*sign
             run_pull(iter, K_array[j], domain_dict["name"])
-    print("Running simulations for domain " + domain_dict["name"] + " iteration " + str(iter) + "with K= " + str(K_array))
+    print("Running simulations for domain " + domain_dict["name"] + " iteration " + str(iter) + " with K= " + str(K_array))
     logging.info("Running simulations for domain " + domain_dict["name"] + " iteration " + str(iter))
+    f = open("used_Ks.json", "r")
+    used_dict = json.load(f)
+    used_Ks = used_dict['used_Ks']
+    # convert used_Ks elements to int
+    used_Ks = [int(i) for i in used_Ks]
     used_Ks = np.append(used_Ks, K_array)
     # remove duplicates from used_Ks
     used_Ks = np.unique(used_Ks)
@@ -573,7 +588,6 @@ def run_simulation(iter: int, dom: str, K_array: np.array):
 
 def contpull(iter: int, dom: str, idx: int):
     domain_dict = dom
-    global status_array
     global status_dict
     f = open("K_array.json", "r")
     K_dict = json.load(f)
@@ -590,26 +604,22 @@ def contpull(iter: int, dom: str, idx: int):
     used_Ks = [int(i) for i in used_Ks]
     for j in range(5):
         status(j, K_array[j], domain_dict, iter)
-    #print(status_dict)
     # go through status_dict and convert all keys to int
     status_dict = {int(k):v for k,v in status_dict.items()}
-    #print(status_dict)
 
     res, best_K = check_if_done()
-    #print("res: " + str(res) + " best_K: " + str(best_K))
     if res == 1:
-        global gro_file
         gro_file = 'pull_' + domain_dict + str(iter) + '_' + str(best_K) + '.gro'
-        global route
-        route += domain_dict + "/iteration_" + str(iter) + "/K_" + str(best_K)
+        gro_dict = {"gro_file": gro_file}
+        with open("gro_file.json", "w") as f:
+            json.dump(gro_dict, f, indent=4)
+        #global route
+        #route += domain_dict + "/iteration_" + str(iter) + "/K_" + str(best_K)
         pullf = "pull_" + domain_dict + str(iter) + "_" + str(best_K) + "f.xvg"
         pullx = "pull_" + domain_dict + str(iter) + "_" + str(best_K) + "x.xvg"
         pull_plot(pullx, pullf)
         print("The best force constant has been found.")
         logging.info("The best force constant has been found.")
-        start_dict = {"start": cfg.domains[0]["start"]}
-        with open("start.json", "w") as f:
-            json.dump(start_dict, f, indent=4)
         f = open("start.json", "r")
         start = json.load(f)
         current_coord = start['start'] + 1.0
@@ -693,6 +703,10 @@ def conteq(iter: int, dom: string):
     else:
         print("Equilibration was successful")
         logging.info("Equilibration was successful")
+        gro_file = 'pull_eq_' + dom + str(iter) + '.gro'
+        gro_dict = {"gro_file": gro_file}
+        with open("gro_file.json", "w") as f:
+            json.dump(gro_dict, f, indent=4)
 
 
 if __name__ == '__main__':
