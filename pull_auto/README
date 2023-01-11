@@ -10,94 +10,16 @@ Initially, the tool will be written for simpler reaction coordinates.
 6Once the proof of concept is established we will use machine learning tools to derive a reaction coordinate from the initial SMD simulations and adapt it along the reaction path to estimate a more collective reaction coordinate dynamically.
 
 Preparations:
--mdp file
+-make mdp file(s) yourself
 -pre-processing: solvation, box, energy minimization, equilibration etc.
 -fill input.config
--import gromacs and python in mahti
+-import gromacs and python in mahti ('module load gromacs' and 'module load python-data')
 
 Functions:
 
-ask_continue
-Inputs: -
-Outputs: No output, but will either continue with the next iteration or exit the program.
-
-Ask user if they wish to continue the simulations with the next iteration or quit.
-Will be asked after each iteration after equilibration.
-
-check_if_done
-Inputs: -
-Outputs: RES (0 for fail, 1 for success)
-
-Function for checking if the best force constant is found. 
-Best force constant means that the difference between the best K and the lower value of K is 5 (or less) and the simulation with the lower K failed. 
-Therefore K_BEST is the smallest K possible that is 
-still able to pull/push the desired distance.
-
-cleanup
-Inputs: Yes/No interactive user input
-Outputs: -
-
-Function for cleaning up unnecessary files. 
-Asks the user if they wish to remove files from earlier unsuccessful simulations. 
-Cleanup is recommended. 
-
-new_K
-Inputs: -
-Outputs: -
-
-Function for determining an array of new K values. 
-Will check STATUS_ARRAY for successful force constants (K) and produce new array of K's of length 3 or 5. 
-Will update STATUS_ARRAY also. Will find the smallest successful K and calculate 1 new
-value of K between the successful K and the K from the previous index in the array. 
-The K's will be rounded to the nearest multiple of 5.
-Example:
-K_ARRAY=(10 20 30)
-K=20 and K=30 were successful.
-Therefore the new K_ARRAY=(10 15 20), and a simulation for K=15 will be run.
-
-read_config
-Inputs: -
-Outputs: -
-
-Will read the input.config file and check that files are in correct formats and have correct amount of elements. 
-Config file variables will be used in the script.
-
-run_eq
-Inputs: Domain and iteration
-Outputs: -
-
-Function for running equilibrations. Input domain means the abbreviation of the pulled/pushed domain e.g. TM for transmembrane domain. 
-Iteration means the current step in the entire pulling of the domain. Both inputs will be used in file naming. 
-Function will set up and run a flat-bottom equilibration, and after it's done the function will analyze if the system is equilibrated enough. 
-This will happen by analyzing the rmsd slope. Will run eq again with longer wall time if not successful.
-
-run_pull
-Inputs: Iteration, K and domain
-Outputs: -
-
-Function for setting up a pulling simulation and running it. Uses K for setting force constant in the mdp file. Uses inputs also in file naming.
-
-run_simulation
-Inputs: Domain and number of iterations
-Outputs: -
-
-Big function for running the entire series of simulations. 
-Calculates values for K, runs pulling simulations, checks their success, run equiulibrations etc.
-
-status
-Inputs: STATUS_ARRAY index, domain, K and iteration
-Outputs: STATUS_ARRAY: 1 for success, 0 for fail
-
-Function for determining if a pulling simulation with force constant K was successful.
-Successful means it was able to pull/push 1nm (or other specified distance).
-
-write_batch
-Inputs: File name
-Outputs: -
-
-Function for writing a batch file for running pulling and equilibration simulations in CSCs Mahti.
-Reads slurm variables from input file. File name is usually of type pull_${DOMAIN}${ITERATION}_$K
-
+-init
+-contpull
+-conteq
 
 
 
