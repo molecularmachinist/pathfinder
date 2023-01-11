@@ -1,0 +1,34 @@
+Plan:
+
+Ohjeet:
+-import your own modules beforte running, at least gromacs and python
+-move all files into mahti
+
+Example folder:
+-pathfinder
+-sbatch
+-config
+-toppar
+-topol
+-step7.gro
+-pull_eq.mdp
+-pull_TK.mdp
+-index
+
+-first run init
+python pathfinder.py init
+-wait for simulations to finish
+
+-then run contpull
+python pathfinder.py contpull 0 'TK' 0
+-see what happens
+    -There should be warning about using Parrinello-Rahman pressure coupling when generating velocities.
+        This is fine, and if there are no other warnings, please add the following line to the config file:
+        maxwarn = 1
+    -if the best K hasnt been found, it will run new pulling sims with different used_Ks
+    -if the best K has been found, it will ask if you want to equilibrate the system (recommended)
+        -it will run eq and again wait for sim to finish
+
+-if you were running a pulling sim, run contpull again
+-if you were running equilibration, run conteq
+
