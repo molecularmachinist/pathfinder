@@ -523,6 +523,7 @@ def analyze(file, domain):
 
 # Start a new iteration
 def init(iter: int, idx: int):
+    iter = int(iter)
     read_config()
     # for first iteration
     if iter == 0:
