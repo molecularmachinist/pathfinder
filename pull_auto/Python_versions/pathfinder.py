@@ -140,13 +140,14 @@ def run_pull(iter: int, K: int, domain: str):
     write_batch(file_name, batch)
     bash_command("sbatch -J {} -o {} {}".format(jobname, output, batch))
     print("Running {} with K = {}".format(file_name, K))
-
-    bash_command("cd iteration{}".format(iter))
+    time.sleep(10)
+    #bash_command("cd iteration{}".format(iter))
     # if directory doesn't exist, create it
     if not os.path.exists("K={}".format(K)):
-        bash_command("mkdir -p K={}".format(K))
-    bash_command("cd ..")
-    bash_command("mv pull_{}{}_{}.* iteration{}/K={}".format(domain,iter,K,iter,K))
+        bash_command("mkdir -p iteration{}/K={}".format(iter, K))
+    #bash_command("cd ..")
+    time.sleep(2)
+    bash_command("mv pull_{}{}_{}* iteration{}/K={}".format(domain,iter,K,iter,K))
     time.sleep(7)
 
 
@@ -279,6 +280,7 @@ def check_if_done():
     # else:
     #     print('The best force constant has not yet been found.')
     #     return 0,0
+
 
 
 
@@ -604,6 +606,7 @@ def contpull(iter: int, dom: str, idx: int):
     # convert used_Ks elements to int
     used_Ks = [int(i) for i in used_Ks]
     for j in range(5):
+        bash_command("mv pull_{}{}_{}* iteration{}/K={}".format(dom,iter,j,iter,j))
         status(j, K_array[j], domain_dict, iter)
     # go through status_dict and convert all keys to int
     status_dict = {int(k):v for k,v in status_dict.items()}
@@ -618,6 +621,8 @@ def contpull(iter: int, dom: str, idx: int):
         #route += domain_dict + "/iteration_" + str(iter) + "/K_" + str(best_K)
         pullf = "pull_" + domain_dict + str(iter) + "_" + str(best_K) + "f.xvg"
         pullx = "pull_" + domain_dict + str(iter) + "_" + str(best_K) + "x.xvg"
+        bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, pullf))
+        bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, pullx))
         pull_plot(pullx, pullf)
         print("The best force constant has been found.")
         logging.info("The best force constant has been found.")
