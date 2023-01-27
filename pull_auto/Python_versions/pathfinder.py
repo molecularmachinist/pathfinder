@@ -147,7 +147,7 @@ def run_pull(iter: int, K: int, domain: str):
         bash_command("mkdir -p iteration{}/K={}".format(iter, K))
     #bash_command("cd ..")
     time.sleep(2)
-    bash_command("mv pull_{}{}_{}* iteration{}/K={}".format(domain,iter,K,iter,K))
+    #bash_command("mv pull_{}{}_{}* iteration{}/K={}".format(domain,iter,K,iter,K))
     time.sleep(7)
 
 
@@ -158,6 +158,8 @@ def run_pull(iter: int, K: int, domain: str):
 def status(idx: int, K: int, domain: string, iter: int):
     global status_dict
     file_name = 'iteration' + str(iter) + '/K=' + str(K) + '/pull_' + str(domain) + str(iter) + '_' + str(K) + 'x.xvg'
+    #remove whitespace from file_name
+    file_name = file_name.replace(" ", "")
     if os.path.exists(file_name):
         with open(file_name, 'r') as f:
             for i, line in enumerate(f):
@@ -177,13 +179,19 @@ def status(idx: int, K: int, domain: string, iter: int):
         if abs(float(last) - float(first)) >= 0.9:
             print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
             logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
-            status_array[idx] = 1
+            #status_array[idx] = 1
             status_dict[int(K)]=1
+            # status_dict={"status_dict": status_dict}
+            # with open("status_dict.json", "w") as f:
+            #     json.dump(status_dict, f, indent=4)
             return 1
         else:
             print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
             logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
             status_dict[int(K)]=0
+            # status_dict={"status_dict": status_dict}
+            # with open("status_dict.json", "w") as f:
+            #     json.dump(status_dict, f, indent=4)
             return 0
     else:
         print('The xvg file does not exist')
@@ -197,10 +205,21 @@ def status(idx: int, K: int, domain: string, iter: int):
 
 def new_K(status_array, K_array):
     # from status_array find the index of the first 1
-    for i in range(len(status_array)):
-        if status_array[i] == 1:
-            idx = i
+    # for i in range(len(status_array)):
+    #     if status_array[i] == 1:
+    #         idx = i
+    #         break
+    index=0
+    status_array = status_array['status_dict']
+    status_array = dict(status_array)
+    K_array = list(K_array)
+    for key, value in status_array.items():
+        if value == 1:
+            print('key=' + str(key))
+            index = K_array.index(key)
             break
+    print('index=' + str(index))
+    K_array = np.array(K_array)
 
     # if all elements in status_array are 0, double K max
     if all(v == 0 for v in status_array):
@@ -209,10 +228,10 @@ def new_K(status_array, K_array):
         K_array[0] = K_array[4] + 5
         K_array[4] = K_array[4] * 2
     else:
-        print('K=' + str(K_array[idx]) + ' was successful.')
+        print('K=' + str(K_array[index]) + ' was successful.')
         # the successful K will now be K max in the K_array
-        K_array[4] = K_array[idx]
-        K_array[0] = K_array[idx-1]
+        K_array[4] = K_array[index]
+        K_array[0] = K_array[index-1]
     
     # set other K's in K_array equally spaced between 5 and K max
     K_array[2] = (K_array[0] + (K_array[4]-K_array[0])/2)
@@ -243,14 +262,14 @@ def new_K(status_array, K_array):
 def check_if_done():
     # go through status_dict
     # sort status_dict by key
-    global status_array
+    #global status_array
     g = open("status_dict.json", "r")
     st_dict = json.load(g)
     status_dict = st_dict['status_dict']
     status_dict = dict(status_dict)
     status_dict = {int(k):v for k,v in status_dict.items()}
     status_dict = {k: v for k, v in sorted(status_dict.items(), key=lambda item: item[0])}
-    print(status_dict)
+    #print(status_dict)
     for key, value in status_dict.items():
         # if 5 is the best K
         if value == 1 and (key - 5) <= 0:
@@ -258,10 +277,11 @@ def check_if_done():
             logging.info('The best force constant has been found. The force constant is ' + str(key) + '.')
             return 1,key
         elif value == 1:
-            if status_dict[key-5] == 0:
-                print('The best force constant has been found. The force constant is ' + str(key) + '.')
-                logging.info('The best force constant has been found. The force constant is ' + str(key) + '.')
-                return 1,key
+            if key-5 in status_dict:
+                if status_dict[key-5] == 0:
+                    print('The best force constant has been found. The force constant is ' + str(key) + '.')
+                    logging.info('The best force constant has been found. The force constant is ' + str(key) + '.')
+                    return 1,key
     return 0,0
 
 
@@ -313,7 +333,7 @@ def run_eq(domain: string, iter: int):
     lines.append("pull_coord2_init = " + str(range_low))
     open(mdp_file, 'w').writelines(lines)
 
-    bash_command("gmx_mpi grompp -f pull_eq.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn 1".format(file_name, gro_file, gro_file, cfg.ndx))
+    bash_command("gmx_mpi grompp -f pull_eq.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(file_name, gro_file, gro_file, cfg.ndx, cfg.maxwarn))
     time.sleep(7)
     write_batch(file_name, 'sbatch.sh')
     bash_command("sbatch -J {} -o {} sbatch.sh".format(jobname, output))
@@ -535,7 +555,18 @@ def init(iter: int, idx: int):
         start_dict = {"start": cfg.domains[0]["start"]}
         with open("start.json", "w") as f:
             json.dump(start_dict, f, indent=4)
-    K_array = np.array([5, 20, 30, 40, 50])
+    K_array = np.array([5, 0, 0, 0, 0])
+    K_array[4] = cfg.domains[int(idx)]["K_max"]
+    K_array[2] = (K_array[0] + (K_array[4]-K_array[0])/2)
+    # round K's to nearest multiple of 5
+    K_array[2] = round(K_array[2]/5)*5
+    K_array[1] = (K_array[2] - K_array[0])/2
+    K_array[1] = round(K_array[1]/5)*5
+    K_array[1] = K_array[0] + K_array[1]
+    K_array[3] = (K_array[4] - K_array[2])/2
+    K_array[3] = round(K_array[3]/5)*5
+    K_array[3] = K_array[2] + K_array[3]
+    print("K_array: ", K_array)
     K_dict = {"K_array": K_array.tolist()}
     status_dict = {"status_dict": []}
     used_Ks = {"used_Ks": []}
@@ -606,10 +637,17 @@ def contpull(iter: int, dom: str, idx: int):
     # convert used_Ks elements to int
     used_Ks = [int(i) for i in used_Ks]
     for j in range(5):
-        bash_command("mv pull_{}{}_{}* iteration{}/K={}".format(dom,iter,j,iter,j))
+        bash_command("[[ -f pull_{}{}_{}.* ]] && mv pull_{}{}_{}.* iteration{}/K={}".format(dom,iter,K_array[j],dom,iter,K_array[j],iter,K_array[j]))
+        bash_command("[[ -f pull_{}{}_{}x* ]] && mv pull_{}{}_{}x* iteration{}/K={}".format(dom,iter,K_array[j],dom,iter,K_array[j],iter,K_array[j]))
+        bash_command("[[ -f pull_{}{}_{}f* ]] && mv pull_{}{}_{}f* iteration{}/K={}".format(dom,iter,K_array[j],dom,iter,K_array[j],iter,K_array[j]))
+        bash_command("[[ -f pull_{}{}_{}_prev* ]] && mv pull_{}{}_{}_prev* iteration{}/K={}".format(dom,iter,K_array[j],dom,iter,K_array[j],iter,K_array[j]))
         status(j, K_array[j], domain_dict, iter)
     # go through status_dict and convert all keys to int
     status_dict = {int(k):v for k,v in status_dict.items()}
+    print("status_dict: ", status_dict)
+    status_dict={"status_dict": status_dict}
+    with open("status_dict.json", "w") as f:
+        json.dump(status_dict, f, indent=4)
 
     res, best_K = check_if_done()
     if res == 1:
@@ -635,7 +673,7 @@ def contpull(iter: int, dom: str, idx: int):
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, gro_file))
     else:
         print("The best force constant has not been found yet.")
-        K_array = new_K(status_array, K_array)
+        K_array = new_K(status_dict, K_array)
         K_dict = {"K_array": K_array.tolist()}
         st_dict = {"status_dict": status_dict}
         print("Used Ks: {}".format(used_Ks))

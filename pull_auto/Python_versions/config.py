@@ -8,11 +8,13 @@ User modifies
 remote_dir = "/scratch/project_2006125/vanilja/pathfinder"
 # remote name
 remote_name = "mahti"
+# run multiple copies of simulations?
+run_multiple = False
 
 ############# Input Files #############
 ndx = "index.ndx"
 topol = "topol.top"
-mdp = "pull_TM.mdp"
+mdp = "pull_TK.mdp"
 gro = "step7.gro"
 maxwarn = 1
 

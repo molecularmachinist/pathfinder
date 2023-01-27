@@ -25,27 +25,70 @@ Outputs:
 
 TO DO:
 -make demo
--in grompp, check that the warning can be ignored
 -run multiples of each iterations
+    -maybe array jobs
+    -10 grompps also??
+    -put numbers 1-10 in the end of file names
+    -move files to directories after running
+    -how to decide which K is the best?
+    -how to check all of the xvg files?
 -folder structure for eq
+-how to keep track of iterations if multiple domains?
+    -use unique iteration numbers even if domain changes
+-produce K_array in init from K_max in config
 
 
-20.12.
--for some reason the 30 and 30 didnt pull even though previously did
-    -multiples of sims need to be done so that prob solves it
--remember to push to github
+11.1.
+-it seems that eq and conteq works
+-next iteration1
+    -before next iter the gro file needs to change, 
+        and json files need to be cleaned up
+-does contpull need 'dom'?
+-in demo check file locations and mahti directories
+-change folder names in github
 
-21.12
--remember to push to github
--prob: used_Ks doesnt contain 30 and 40
+13.1.
+-first part of demo works
+-next time run contpull
+
+18.1.
+-move files to folders in the beginning of contpull
+-copy the best K gro file and others needed to main directory
+-maybe make a function for checking that files are in correct folder
+and correcting them if not
+-next to do the 10 copies of sims
+    -array jobs
+-next time try contpull for demo
+
+24.1.
+Today:
+-test array jobs and implement
+    -naming for copies and moving them to their own folders?
+    -add check config if multiples=false
+-test if 'python pathfinder.py ...' command can be shortened
+-add midpoint files to demo if someone doesnt want to run sims
+-run init again (done)
+-prob: status_array not defined in new_K (maybe fixed, test)
+
+
+27.1.
+-run contpull
+-test array jobs and implement
+    -naming for copies and moving them to their own folders?
+    -add check config if multiples=false
+    -check if any of the copies was successful
+-test if 'python pathfinder.py ...' command can be shortened
+-add midpoint files to demo if someone doesnt want to run sims
+-new K might not need status_array as argument
+-in example folder, 35 running, next run contpull, wrong gro file but ignore
+-in example/test/files/ running init, next test contpull
 
 
 TO DO:
 -outputs such as plots, etc.
 -make a file system with folders and move between them
 -rsync files, warning for large files
--documentation
-(-comments, README file, testing)
+
 
 
 Errors:
