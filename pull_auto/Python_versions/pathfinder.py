@@ -210,7 +210,7 @@ def new_K(status_array, K_array):
     #         idx = i
     #         break
     index=0
-    status_array = status_array['status_dict']
+    #status_array = status_array['status_dict']
     status_array = dict(status_array)
     K_array = list(K_array)
     for key, value in status_array.items():
@@ -265,8 +265,8 @@ def check_if_done():
     #global status_array
     g = open("status_dict.json", "r")
     st_dict = json.load(g)
-    status_dict = st_dict['status_dict']
-    status_dict = dict(status_dict)
+    #status_dict = st_dict['status_dict']
+    status_dict = dict(st_dict)
     status_dict = {int(k):v for k,v in status_dict.items()}
     status_dict = {k: v for k, v in sorted(status_dict.items(), key=lambda item: item[0])}
     #print(status_dict)
@@ -568,7 +568,7 @@ def init(iter: int, idx: int):
     K_array[3] = K_array[2] + K_array[3]
     print("K_array: ", K_array)
     K_dict = {"K_array": K_array.tolist()}
-    status_dict = {"status_dict": []}
+    status_dict = {}
     used_Ks = {"used_Ks": []}
     with open("used_Ks.json", "w") as f:
        json.dump(used_Ks, f, indent=4)
@@ -629,23 +629,32 @@ def contpull(iter: int, dom: str, idx: int):
     K_array = np.array(K_array)
     g = open("status_dict.json", "r")
     st_dict = json.load(g)
-    status_dict = st_dict['status_dict']
-    status_dict = dict(status_dict)
+    #print(st_dict)
+    #status_dict = st_dict['status_dict']
+    status_dict = dict(st_dict)
     h = open("used_Ks.json", "r")
     used_dict = json.load(h)
     used_Ks = used_dict['used_Ks']
     # convert used_Ks elements to int
     used_Ks = [int(i) for i in used_Ks]
-    for j in range(5):
-        bash_command("[[ -f pull_{}{}_{}.* ]] && mv pull_{}{}_{}.* iteration{}/K={}".format(dom,iter,K_array[j],dom,iter,K_array[j],iter,K_array[j]))
-        bash_command("[[ -f pull_{}{}_{}x* ]] && mv pull_{}{}_{}x* iteration{}/K={}".format(dom,iter,K_array[j],dom,iter,K_array[j],iter,K_array[j]))
-        bash_command("[[ -f pull_{}{}_{}f* ]] && mv pull_{}{}_{}f* iteration{}/K={}".format(dom,iter,K_array[j],dom,iter,K_array[j],iter,K_array[j]))
-        bash_command("[[ -f pull_{}{}_{}_prev* ]] && mv pull_{}{}_{}_prev* iteration{}/K={}".format(dom,iter,K_array[j],dom,iter,K_array[j],iter,K_array[j]))
-        status(j, K_array[j], domain_dict, iter)
-    # go through status_dict and convert all keys to int
+    K_array_unique = np.unique(K_array)
+    K_filtered = []
+    for i in K_array_unique:
+        if i not in used_Ks:
+            K_filtered.append(i)
+    K_filtered = np.array(K_filtered)
+    for j in K_filtered:
+        bash_command("[ -e pull_{}{}_{}.* ] && mv pull_{}{}_{}.* iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+        bash_command("[ -e pull_{}{}_{}x.xvg ] && mv pull_{}{}_{}x.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+        bash_command("[ -e pull_{}{}_{}f* ] && mv pull_{}{}_{}f* iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+        bash_command("[ -e pull_{}{}_{}_prev.cpt ] && mv pull_{}{}_{}_prev.cpt iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+        status(j, K_filtered[j], domain_dict, iter)
+    #print(status_dict)
+    #print(status_dict['status_dict'])
     status_dict = {int(k):v for k,v in status_dict.items()}
+    status_dict = {k:status_dict[k] for k in sorted(status_dict)}
     print("status_dict: ", status_dict)
-    status_dict={"status_dict": status_dict}
+    #status_dict={"status_dict": status_dict}
     with open("status_dict.json", "w") as f:
         json.dump(status_dict, f, indent=4)
 
@@ -662,20 +671,14 @@ def contpull(iter: int, dom: str, idx: int):
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, pullf))
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, pullx))
         pull_plot(pullx, pullf)
-        print("The best force constant has been found.")
+        #print("The best force constant has been found.")
         logging.info("The best force constant has been found.")
-        f = open("start.json", "r")
-        start = json.load(f)
-        current_coord = start['start'] + 1.0
-        start_dict = {"start": current_coord}
-        with open("start.json", "w") as f:
-            json.dump(start_dict, f, indent=4)
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, gro_file))
     else:
         print("The best force constant has not been found yet.")
         K_array = new_K(status_dict, K_array)
         K_dict = {"K_array": K_array.tolist()}
-        st_dict = {"status_dict": status_dict}
+        #st_dict = {"status_dict": status_dict}
         print("Used Ks: {}".format(used_Ks))
         # remove duplicates from K_array
         K_array_unique = np.unique(K_array)
@@ -694,7 +697,7 @@ def contpull(iter: int, dom: str, idx: int):
                 with open("K_array.json", "w") as f:
                     json.dump(K_dict, f, indent=4)
                 with open("status_dict.json", "w") as f:
-                    json.dump(st_dict, f, indent=4)
+                    json.dump(status_dict, f, indent=4)
                 run_simulation(iter, cfg.domains[int(idx)], K_filtered)
             elif answer == "n":
                 print("You answered no. Exiting...")
@@ -707,13 +710,16 @@ def contpull(iter: int, dom: str, idx: int):
 
     # assume that the sim was successful for some K
     # ask if the user wants to run equilibration
-    print("The best force constant has been found.")
+    #print("The best force constant has been found.")
     def ask_eq():
         answer = input("Do you want to run equilibration? (y/n)")
         if answer == "y":
             print("You answered yes. Continuing to equilibration...")
             logging.info('User chose to continue to equilibration.')
-            start_dict = {"start": 5.3}
+            f = open("start.json", "r")
+            start = json.load(f)
+            current_coord = start['start'] + 1.0
+            start_dict = {"start": current_coord}
             with open("start.json", "w") as f:
                 json.dump(start_dict, f, indent=4)
             run_eq(domain_dict, iter)
