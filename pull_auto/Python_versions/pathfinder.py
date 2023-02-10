@@ -40,6 +40,18 @@ logging.info('Starting program')
 
 
 
+def help():
+    print("This is a help message")
+    print("\nAll commands start with 'python pathfinder.py' followed by the command and arguments")
+    print("Commands:")
+    print("\thelp - prints this message")
+    print("\tinit 'iter' 'idx' - initializes the simulation")
+    print("\tcontpull 'iter' 'domain' 'idx' - continues from the previous pulling simulation")
+    print("\tconteq 'iter' 'domain' - continues from the previous equilibration simulation")
+    with open('last_command.json', 'r') as f:
+        last_command = json.load(f)
+    print("\nThe lates command you ran was: " + last_command['last_command'])
+
 
 
 ## error handling for inputs
@@ -74,6 +86,16 @@ def read_config():
     if len(cfg.domains) != cfg.num_of_domains:
         print('The number of domains must match the length of the domains array')
         logging.error('The number of domains does not match the length of the domains array')
+        sys.exit()
+
+    if cfg.run_multiple == True and cfg.num_of_copies < 1:
+        print('The number of copies must be greater than 0')
+        logging.error('The number of copies is less than 1')
+        sys.exit()
+
+    if cfg.run_multiple == True and cfg.num_of_copies > 10:
+        print("That's too many copies, please choose a number between 1 and 10")
+        logging.error('The number of copies is greater than 10')
         sys.exit()
 
 
@@ -141,13 +163,9 @@ def run_pull(iter: int, K: int, domain: str):
     bash_command("sbatch -J {} -o {} {}".format(jobname, output, batch))
     print("Running {} with K = {}".format(file_name, K))
     time.sleep(10)
-    #bash_command("cd iteration{}".format(iter))
-    # if directory doesn't exist, create it
+
     if not os.path.exists("K={}".format(K)):
         bash_command("mkdir -p iteration{}/K={}".format(iter, K))
-    #bash_command("cd ..")
-    time.sleep(2)
-    #bash_command("mv pull_{}{}_{}* iteration{}/K={}".format(domain,iter,K,iter,K))
     time.sleep(7)
 
 
@@ -158,24 +176,18 @@ def run_pull(iter: int, K: int, domain: str):
 def status(idx: int, K: int, domain: string, iter: int):
     global status_dict
     file_name = 'iteration' + str(iter) + '/K=' + str(K) + '/pull_' + str(domain) + str(iter) + '_' + str(K) + 'x.xvg'
-    #remove whitespace from file_name
     file_name = file_name.replace(" ", "")
     if os.path.exists(file_name):
         with open(file_name, 'r') as f:
             for i, line in enumerate(f):
                 if i == 17:
                     line = line.split()
-                    # get 2nd column from line
                     first = line[1]
-                    #print(first)
-        # get last line from file
         with open(file_name, 'r') as f:
             for i, line in enumerate(f):
                 pass
             line = line.split()
-            # get 2nd column from line
             last = line[1]
-            #print(last)
         if abs(float(last) - float(first)) >= 0.9:
             print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
             logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
@@ -312,7 +324,7 @@ def run_eq(domain: string, iter: int):
     file_name = 'pull_eq_' + str(domain) + str(iter)
     mdp_file = 'pull_eq.mdp'
     jobname = 'eq_' + str(domain)
-    output = 'eq_' + str(domain)
+    output = 'eq_' + str(domain) + '.out'
 
     bash_command("cd iteration{}".format(iter))
     bash_command("mkdir -p eq")
@@ -340,26 +352,6 @@ def run_eq(domain: string, iter: int):
     print("Equilibration {} submitted".format(file_name))
     logging.info("Equilibration {} submitted".format(file_name))
     sys.exit()
-
-    #############
-    ## WAITING ##
-    #############
-
-    command="gmx_mpi rms -s {}.tpr -f {}.xtc -o {}_rmsd.xvg -tu ns".format(file_name, file_name, file_name)
-    subprocess.run([command], input="4 4", text=True, shell=True, executable='/bin/bash')
-
-    rmsd_xvg_file = file_name + '_rmsd.xvg'
-    # from analyze.py use function analyze
-    result=analyze(rmsd_xvg_file, domain)
-    print("Result: ", result)
-    if result == 0:
-        print("Running equilibration again with longer wall time")
-        logging.info("Running equilibration again with longer wall time")
-        wall_time()
-        run_eq(domain, iter)
-    else:
-        print("Equilibration was successful")
-        logging.info("Equilibration was successful")
     
 
 
@@ -420,7 +412,6 @@ def pull_plot(pullx_file, pullf_file):
     figure.tight_layout()
     pullx_file = pullx_file[:-4]
     plt.savefig('outputs/{}.png'.format(pullx_file))
-    #plt.show()
 
     x,y = np.loadtxt(pullf_file,comments=["@","#"],unpack=True)
     n=math.ceil(0.8*len(x))
@@ -436,7 +427,6 @@ def pull_plot(pullx_file, pullf_file):
     figure.tight_layout()
     pullf_file = pullf_file[:-4]
     plt.savefig('outputs/{}.png'.format(pullf_file))
-    #plt.show()
 
 
 
@@ -555,6 +545,9 @@ def init(iter: int, idx: int):
         start_dict = {"start": cfg.domains[0]["start"]}
         with open("start.json", "w") as f:
             json.dump(start_dict, f, indent=4)
+        last_command = {"last_command": "init " + str(iter) + " " + str(idx)}
+        with open("last_command.json", "w") as f:
+            json.dump(last_command, f, indent=4)
     K_array = np.array([5, 0, 0, 0, 0])
     K_array[4] = cfg.domains[int(idx)]["K_max"]
     K_array[2] = (K_array[0] + (K_array[4]-K_array[0])/2)
@@ -623,6 +616,9 @@ def run_simulation(iter: int, dom: str, K_array: np.array):
 def contpull(iter: int, dom: str, idx: int):
     domain_dict = dom
     global status_dict
+    last_command = {"last_command": "contpull " + str(iter) + " " + str(dom) + " " + str(idx)}
+    with open("last_command.json", "w") as f:
+        json.dump(last_command, f, indent=4)
     f = open("K_array.json", "r")
     K_dict = json.load(f)
     K_array = K_dict['K_array']
@@ -643,11 +639,12 @@ def contpull(iter: int, dom: str, idx: int):
         if i not in used_Ks:
             K_filtered.append(i)
     K_filtered = np.array(K_filtered)
-    for j in K_filtered:
-        bash_command("[ -e pull_{}{}_{}.* ] && mv pull_{}{}_{}.* iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
-        bash_command("[ -e pull_{}{}_{}x.xvg ] && mv pull_{}{}_{}x.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
-        bash_command("[ -e pull_{}{}_{}f* ] && mv pull_{}{}_{}f* iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
-        bash_command("[ -e pull_{}{}_{}_prev.cpt ] && mv pull_{}{}_{}_prev.cpt iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+    K_filtered = K_array                ## REMOVE THIS LINE AFTER TESTING
+    for j in range(len(K_filtered)):
+        bash_command("if compgen -G pull_{}{}_{}.* > /dev/null; then\nmv pull_{}{}_{}.* iteration{}/K={}\nfi".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+        bash_command("[[ -f pull_{}{}_{}x.xvg ]] && mv pull_{}{}_{}x.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+        bash_command("[[ -f pull_{}{}_{}f.xvg ]] && mv pull_{}{}_{}f.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+        bash_command("[[ -f pull_{}{}_{}_prev.cpt ]] && mv pull_{}{}_{}_prev.cpt iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
         status(j, K_filtered[j], domain_dict, iter)
     #print(status_dict)
     #print(status_dict['status_dict'])
@@ -657,6 +654,7 @@ def contpull(iter: int, dom: str, idx: int):
     #status_dict={"status_dict": status_dict}
     with open("status_dict.json", "w") as f:
         json.dump(status_dict, f, indent=4)
+
 
     res, best_K = check_if_done()
     if res == 1:
@@ -736,6 +734,10 @@ def contpull(iter: int, dom: str, idx: int):
 # Continue simulations
 # First check status and check if done
 def conteq(iter: int, dom: string):
+    last_command = {"last_command": "conteq " + str(iter) + " " + str(dom)}
+    with open("last_command.json", "w") as f:
+        json.dump(last_command, f, indent=4)
+
     # check if the equilibration is done
     file_name = 'pull_eq_' + str(dom) + str(iter)
     command="gmx_mpi rms -s {}.tpr -f {}.xtc -o {}_rmsd.xvg -tu ns".format(file_name, file_name, file_name)
@@ -746,13 +748,20 @@ def conteq(iter: int, dom: string):
     result=analyze(rmsd_xvg_file, dom)
     print("Result: ", result)
     if result == 0:
-        print("Running equilibration again with longer wall time")
-        logging.info("Running equilibration again with longer wall time")
-        wall_time()
-        run_eq(dom, iter)
+        answer = input("Equilibration was not successful. Do you want to run it again with longer wall time? (y/n)")
+        if answer == "y":
+            print("Running equilibration again with longer wall time")
+            logging.info("Running equilibration again with longer wall time")
+            wall_time(cfg.eq_mdp)
+            run_eq(dom, iter)
+        elif answer == "n":
+            print("You answered no. Exiting...")
+            logging.info('User chose not to continue. Exiting program.')
+            sys.exit()
     else:
         print("Equilibration was successful")
         logging.info("Equilibration was successful")
+        bash_command("if compgen -G pull_eq_{}{}* > /dev/null; then\nmv pull_eq_{}{}* eq\nfi".format(dom,iter,dom,iter))
         gro_file = 'pull_eq_' + dom + str(iter) + '.gro'
         gro_dict = {"gro_file": gro_file}
         with open("gro_file.json", "w") as f:
