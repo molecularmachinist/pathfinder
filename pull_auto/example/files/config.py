@@ -8,11 +8,15 @@ User modifies
 remote_dir = "/scratch/project_2006125/vanilja/pathfinder"
 # remote name
 remote_name = "mahti"
+run_multiple = True
+# how many copies?
+num_of_copies = 2
 
 ############# Input Files #############
 ndx = "index.ndx"
 topol = "topol.top"
-mdp = "pull_TM.mdp"
+mdp = "pull_TK.mdp"
+eq_mdp = "pull_eq.mdp"
 gro = "step7.gro"
 maxwarn = 1
 
