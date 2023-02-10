@@ -40,6 +40,7 @@ Each new iteration of simulations is started with the init command, which takes 
 python pathfinder.py contpull 0 'TK' 0
 ```
 After pulling simulations, you will always continue with the contpull command, which takes 3 arguments as input: the number of the iteration, the name (abbreviation) of the domain and the index of the domain/group in the config file to be pulled. This command will check if any of the simulations were successful and if the best K has been found. If it has, the program will ask if you wish to continue to equilibration (yes). If it has not, it will calculate new values for K and ask if you want to run this new set of simulations (yes). In this case it should run another set of simulations. Again, these will take multiple hours. Continue with the contpull command until you continue to equilibration.
+NOTE: When running contpull, if you encounter an error of type: "ValueError: the number of columns changed from 2 to 1 at row 478; use usecols to select a subset and avoid this error", ignore it for now and just run contpull again. This will be fixed.
 
 ## Continuing to equilibration
 When the best force constant K has been found, the program will continue from the simulation with the best K into equilibration. This will again take multiple hours. 
