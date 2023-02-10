@@ -177,6 +177,7 @@ def status(idx: int, K: int, domain: string, iter: int):
     global status_dict
     file_name = 'iteration' + str(iter) + '/K=' + str(K) + '/pull_' + str(domain) + str(iter) + '_' + str(K) + 'x.xvg'
     file_name = file_name.replace(" ", "")
+    #print(file_name)
     if os.path.exists(file_name):
         with open(file_name, 'r') as f:
             for i, line in enumerate(f):
@@ -196,6 +197,7 @@ def status(idx: int, K: int, domain: string, iter: int):
             # status_dict={"status_dict": status_dict}
             # with open("status_dict.json", "w") as f:
             #     json.dump(status_dict, f, indent=4)
+            bash_command("cd ../..")
             return 1
         else:
             print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
@@ -204,6 +206,7 @@ def status(idx: int, K: int, domain: string, iter: int):
             # status_dict={"status_dict": status_dict}
             # with open("status_dict.json", "w") as f:
             #     json.dump(status_dict, f, indent=4)
+            bash_command("cd ../..")
             return 0
     else:
         print('The xvg file does not exist')
@@ -230,11 +233,11 @@ def new_K(status_array, K_array):
             print('key=' + str(key))
             index = K_array.index(key)
             break
-    print('index=' + str(index))
+    #print('index=' + str(index))
     K_array = np.array(K_array)
 
     # if all elements in status_array are 0, double K max
-    if all(v == 0 for v in status_array):
+    if all(v == 0 for v in status_array.values()):
         print('None of the Ks were successful. Lets double K max.')
         logging.info('None of the Ks were successful. Lets double K max.')
         K_array[0] = K_array[4] + 5
