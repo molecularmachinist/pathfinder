@@ -29,6 +29,12 @@ When using this tool (except for this demo), you need to do these yourself.
 * copy needed files into your mahti repo
 * import gromacs and python-data (module load ...)
 
+## Help
+```
+python pathfinder.py help
+```
+If you need help remembering which function does what, what arguments the functions take as input, or what command you ran previously, you can call the 'help' function.
+
 ## Start
 ```
 python pathfinder.py init 0 0
