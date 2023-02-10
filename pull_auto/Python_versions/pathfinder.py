@@ -93,9 +93,9 @@ def read_config():
         logging.error('The number of copies is less than 1')
         sys.exit()
 
-    if cfg.run_multiple == True and cfg.num_of_copies > 10:
-        print("That's too many copies, please choose a number between 1 and 10")
-        logging.error('The number of copies is greater than 10')
+    if cfg.run_multiple == True and cfg.num_of_copies > 5:
+        print("That's too many copies, please choose a number between 1 and 5")
+        logging.error('The number of copies is greater than 5')
         sys.exit()
 
 
@@ -158,9 +158,17 @@ def run_pull(iter: int, K: int, domain: str):
     f = open("gro_file.json", "r")
     gro_dict = json.load(f)
     gro_file = gro_dict['gro_file']
-    bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, gro_file, gro_file, cfg.ndx, cfg.maxwarn))
-    write_batch(file_name, batch)
-    bash_command("sbatch -J {} -o {} {}".format(jobname, output, batch))
+    if cfg.run_multiple == True:
+        for copy in range(1, cfg.num_of_copies + 1):
+            file_name = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '_' + str(copy)
+            jobname = str(domain) + str(iter) + '_' + str(K) + '_' + str(copy)
+            bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, gro_file, gro_file, cfg.ndx, cfg.maxwarn))
+            write_batch(file_name, batch)
+            bash_command("sbatch -J {} {}".format(jobname, batch))
+    else:
+        bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, gro_file, gro_file, cfg.ndx, cfg.maxwarn))
+        write_batch(file_name, batch)
+        bash_command("sbatch -J {} {}".format(jobname, batch))
     print("Running {} with K = {}".format(file_name, K))
     time.sleep(10)
 
