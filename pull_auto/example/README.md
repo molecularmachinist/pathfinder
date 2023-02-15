@@ -1,4 +1,4 @@
-# PATHFINDER - USAGE EXAMPLE (NOT FINISHED)
+# PATHFINDER - USAGE EXAMPLE
 
 A demo for the pathfinder tool using the TK (tyrosine kinase) domains of the Insulin receptor.
 In this demo we are pulling the TK domains apart from each other.
