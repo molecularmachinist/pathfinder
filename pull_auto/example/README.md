@@ -11,7 +11,7 @@ The tool works in iterations, with the same stages repeating in each iteration.
 ## Needed files:
 * pathfinder.py
 * sbatch.sh (template)
-* config.py (template)
+* config.ini (template)
 
 * toppar (folder) (Files for structure)
 * topol.top
