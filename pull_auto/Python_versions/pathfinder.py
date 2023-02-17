@@ -4,7 +4,8 @@
 # Imports
 import subprocess
 import string
-import config as cfg
+#import config as cfg
+import configparser
 import numpy as np
 import sys
 import logging
@@ -16,30 +17,35 @@ import math
 import json
 
 
+config = configparser.ConfigParser()
+config.read("config.ini")
+ndx = config['FILES']['ndx']
+topol = config['FILES']['topol']
+mdp = config['FILES']['mdp']
+eq_mdp = config['FILES']['eq_mdp']
+gro = config['FILES']['gro']
+maxwarn = config['FILES']['maxwarn']
+#num_of_domains = config['DOMAINS']['num_of_domains']
+# domains = json.loads(config.get("DOMAINS", "domains"))
+# print(domains)
+run_multiple = config['COPIES']['run_multiple']
+num_of_copies = config['COPIES']['num_of_copies']
 
 
 ## LOGGING
 logging.basicConfig(filename='log_pathfinder.log', level=logging.DEBUG)
-# clear log file before running
-#open('log_pathfinder.log', 'w').close()
 logging.info('Starting program')
 
 
-
-
-# Define global variables
-#global gro_file
-#gro_file = cfg.gro
-# global used_Ks
-# used_Ks = np.array([])
-# global route
-# route = []
-# global status_array
-# status_array = np.zeros((5))
-# global K_array
+# Run bash commands
+def bash_command(cmd):
+    subprocess.Popen(cmd, shell=True, executable='/bin/bash', stdin=None, stdout=None, stderr=None)
 
 
 
+# Help function for the user
+# Prints all commands and their arguments
+# Prints the last command that was run
 def help():
     print("This is a help message")
     print("\nAll commands start with 'python pathfinder.py' followed by the command and arguments")
@@ -54,46 +60,50 @@ def help():
 
 
 
-## error handling for inputs
-## stop script if input is incorrect
+# Error handling for inputs and config file
+# Stop script if input is incorrect
 def read_config():
 
     # check that index file has ndx suffix
-    if cfg.ndx[-4:] != '.ndx':
+    if config['FILES']['ndx'][-4:] != '.ndx':
         print('The index file must have the suffix .ndx')
         logging.error('The index file does not have the suffix .ndx')
         sys.exit()
 
     # check that gro file has gro suffix
-    if cfg.gro[-4:] != '.gro':
+    if config['FILES']['gro'][-4:] != '.gro':
         print('The gro file must have the suffix .gro')
         logging.error('The gro file does not have the suffix .gro')
         sys.exit()
 
     # check that mdp file has mdp suffix
-    if cfg.mdp[-4:] != '.mdp':
+    if config['FILES']['mdp'][-4:] != '.mdp':
         print('The mdp file must have the suffix .mdp')
         logging.error('The mdp file does not have the suffix .mdp')
         sys.exit()
 
-    # check that the number of domains is greater than 0
-    if len(cfg.domains) < 1:
-        print('The number of domains must be greater than 0')
-        logging.error('The number of domains is less than 1')
-        sys.exit()
+    # # check that the number of domains is greater than 0
+    # if len(config['DOMAINS']['domains']) < 1:
+    #     print('The number of domains must be greater than 0')
+    #     logging.error('The number of domains is less than 1')
+    #     sys.exit()
 
-    # check that the number of domains matches the length of domains array
-    if len(cfg.domains) != cfg.num_of_domains:
-        print('The number of domains must match the length of the domains array')
-        logging.error('The number of domains does not match the length of the domains array')
-        sys.exit()
+    # # check that the number of domains matches the length of domains array
+    # if len(config['DOMAINS']['domains']) != config['DOMAINS']['num_of_domains']:
+    #     print('The number of domains must match the length of the domains array')
+    #     logging.error('The number of domains does not match the length of the domains array')
+    #     sys.exit()
 
-    if cfg.run_multiple == True and cfg.num_of_copies < 1:
+    # check that the number of copies is greater than 0
+    if config['COPIES']['run_multiple'] == True and config['COPIES']['num_of_copies'] < 1:
         print('The number of copies must be greater than 0')
         logging.error('The number of copies is less than 1')
         sys.exit()
 
-    if cfg.run_multiple == True and cfg.num_of_copies > 5:
+    # check that the number of copies is less than 5
+    # this is to avoid running too many simulations at once
+    # 5 is completely arbitrary and can be changed
+    if config['COPIES']['run_multiple'] == True and config['COPIES']['num_of_copies'] > 5:
         print("That's too many copies, please choose a number between 1 and 5")
         logging.error('The number of copies is greater than 5')
         sys.exit()
@@ -101,12 +111,10 @@ def read_config():
 
 
 
-
-
-
+# Write srun command to batch file
 def write_batch(file_name: string, sbatch: string):
-    # remove last line from sbatch.sh
     command = 'srun gmx_mpi mdrun -deffnm {} -pf {}f.xvg -px {}x.xvg'.format(file_name, file_name, file_name)
+    # remove last line from sbatch.sh
     with open(sbatch, 'r') as f:
         lines = f.readlines()
     with open(sbatch, 'w') as f:
@@ -117,8 +125,9 @@ def write_batch(file_name: string, sbatch: string):
         f.write(command)
     
 
-# doubles nsteps in mdp file
-def wall_time(mdp_file: string):
+
+# Doubles nsteps in mdp file when 
+def longer_time(mdp_file: string):
     # take 6th line from mdp file
     with open(mdp_file, 'r') as f:
         for i, line in enumerate(f):
@@ -136,18 +145,18 @@ def wall_time(mdp_file: string):
 
 
 
-def bash_command(cmd):
-    subprocess.Popen(cmd, shell=True, executable='/bin/bash', stdin=None, stdout=None, stderr=None)
+
 
 
 
 # Set up and run a pulling simulation
+# Runs individual simulations for each K
+# First runs grompp, and then sbatch
 def run_pull(iter: int, K: int, domain: str):
     file_name = 'pull_' + str(domain) + str(iter) + '_' + str(K)
     mdp_file = 'pull_' + str(domain) + '.mdp'
     batch = 'sbatch.sh'
     jobname = str(domain) + str(iter) + '_' + str(K)
-    output = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '.out'
 
     lines = open(mdp_file, 'r').readlines()
     lines[-1] = "\npull_coord1_k = " + str(K) 
@@ -158,90 +167,120 @@ def run_pull(iter: int, K: int, domain: str):
     f = open("gro_file.json", "r")
     gro_dict = json.load(f)
     gro_file = gro_dict['gro_file']
-    if cfg.run_multiple == True:
-        for copy in range(1, cfg.num_of_copies + 1):
+
+    # If run_multiple in config is True, run multiple copies of the simulation
+    if run_multiple == True:
+        print("Running multiple copies of the simulation")
+        for copy in range(1, num_of_copies + 1):
             file_name = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '_' + str(copy)
             jobname = str(domain) + str(iter) + '_' + str(K) + '_' + str(copy)
-            bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, gro_file, gro_file, cfg.ndx, cfg.maxwarn))
+            bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, gro_file, gro_file, ndx, maxwarn))
+            time.sleep(7)
             write_batch(file_name, batch)
             bash_command("sbatch -J {} {}".format(jobname, batch))
     else:
-        bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, gro_file, gro_file, cfg.ndx, cfg.maxwarn))
+        bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, gro_file, gro_file, ndx, maxwarn))
+        time.sleep(7)
         write_batch(file_name, batch)
         bash_command("sbatch -J {} {}".format(jobname, batch))
     print("Running {} with K = {}".format(file_name, K))
     time.sleep(10)
 
+    # Make directory for each K
     if not os.path.exists("K={}".format(K)):
         bash_command("mkdir -p iteration{}/K={}".format(iter, K))
-    time.sleep(7)
 
 
 
 
 # Determine status (0 or 1) for each K/simulation
 # 0 means K wasn't able to pull/push, and 1 means
-def status(idx: int, K: int, domain: string, iter: int):
+def status(K: int, domain: string, iter: int):
     global status_dict
-    file_name = 'iteration' + str(iter) + '/K=' + str(K) + '/pull_' + str(domain) + str(iter) + '_' + str(K) + 'x.xvg'
-    file_name = file_name.replace(" ", "")
-    #print(file_name)
-    if os.path.exists(file_name):
-        with open(file_name, 'r') as f:
-            for i, line in enumerate(f):
-                if i == 17:
+    # Check status of copies
+    if run_multiple == True:
+        for copy in range(1, num_of_copies + 1):
+            file_name = 'iteration' + str(iter) + '/K=' + str(K) + '/pull_' + str(domain) + str(iter) + '_' + str(K) + '_' + str(copy) + 'x.xvg'
+            file_name = file_name.replace(" ", "")
+            print(file_name)
+            # Check if the difference between the first and last distance in xvg file is greater than 0.9 nm (status=1)
+            if os.path.exists(file_name):
+                with open(file_name, 'r') as f:
+                    for i, line in enumerate(f):
+                        if i == 17:
+                            line = line.split()
+                            first = line[1]
+                with open(file_name, 'r') as f:
+                    for i, line in enumerate(f):
+                        pass
                     line = line.split()
-                    first = line[1]
-        with open(file_name, 'r') as f:
-            for i, line in enumerate(f):
-                pass
-            line = line.split()
-            last = line[1]
-        if abs(float(last) - float(first)) >= 0.9:
-            print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
-            logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
-            #status_array[idx] = 1
-            status_dict[int(K)]=1
-            # status_dict={"status_dict": status_dict}
-            # with open("status_dict.json", "w") as f:
-            #     json.dump(status_dict, f, indent=4)
-            bash_command("cd ../..")
-            return 1
-        else:
-            print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
-            logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
-            status_dict[int(K)]=0
-            # status_dict={"status_dict": status_dict}
-            # with open("status_dict.json", "w") as f:
-            #     json.dump(status_dict, f, indent=4)
-            bash_command("cd ../..")
-            return 0
+                    last = line[1]
+                if abs(float(last) - float(first)) >= 0.9:
+                    print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
+                    logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
+                    status_dict[int(K)]=1
+                    bash_command("cd ../..")
+                    return 1
+                else:
+                    print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was not successful.')
+                    logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was not successful.')
+                    if int(K) in status_dict:
+                        if status_dict[int(K)] != 1:
+                            status_dict[int(K)]=0 
+                    else:
+                        status_dict[int(K)]=0
+                    bash_command("cd ../..")
+                    return 0
+            else:
+                print('The xvg file does not exist')
+                logging.error('The xvg file does not exist')
+    # Check status of single copy
     else:
-        print('The xvg file does not exist')
-        logging.error('The xvg file does not exist')
+        file_name = 'iteration' + str(iter) + '/K=' + str(K) + '/pull_' + str(domain) + str(iter) + '_' + str(K) + 'x.xvg'
+        file_name = file_name.replace(" ", "")
+        #print(file_name)
+        # Check if the difference between the first and last distance in xvg file is greater than 0.9 nm (status=1)
+        if os.path.exists(file_name):
+            with open(file_name, 'r') as f:
+                for i, line in enumerate(f):
+                    if i == 17:
+                        line = line.split()
+                        first = line[1]
+            with open(file_name, 'r') as f:
+                for i, line in enumerate(f):
+                    pass
+                line = line.split()
+                last = line[1]
+            if abs(float(last) - float(first)) >= 0.9:
+                print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
+                logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
+                status_dict[int(K)]=1
+                bash_command("cd ../..")
+                return 1
+            else:
+                print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
+                logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
+                status_dict[int(K)]=0
+                bash_command("cd ../..")
+                return 0
+        else:
+            print('The xvg file does not exist')
+            logging.error('The xvg file does not exist')
 
 
 
 
-
-
-
+# Determine new K values for next set of simulations
 def new_K(status_array, K_array):
-    # from status_array find the index of the first 1
-    # for i in range(len(status_array)):
-    #     if status_array[i] == 1:
-    #         idx = i
-    #         break
+    # Check which K was successful
+    # This will determine the new K max and the rest of the Ks
     index=0
-    #status_array = status_array['status_dict']
     status_array = dict(status_array)
     K_array = list(K_array)
     for key, value in status_array.items():
         if value == 1:
-            print('key=' + str(key))
             index = K_array.index(key)
             break
-    #print('index=' + str(index))
     K_array = np.array(K_array)
 
     # if all elements in status_array are 0, double K max
@@ -267,6 +306,7 @@ def new_K(status_array, K_array):
     K_array[3] = round(K_array[3]/5)*5
     K_array[3] = K_array[2] + K_array[3]
     
+    # reset status_array
     status_array = np.zeros((5))
     status_array[4] = 1
 
@@ -280,19 +320,14 @@ def new_K(status_array, K_array):
 
 
 
-
-
+# Check if the best K has been found
 def check_if_done():
-    # go through status_dict
-    # sort status_dict by key
-    #global status_array
+    # go through status_dict and sort
     g = open("status_dict.json", "r")
     st_dict = json.load(g)
-    #status_dict = st_dict['status_dict']
     status_dict = dict(st_dict)
     status_dict = {int(k):v for k,v in status_dict.items()}
     status_dict = {k: v for k, v in sorted(status_dict.items(), key=lambda item: item[0])}
-    #print(status_dict)
     for key, value in status_dict.items():
         # if 5 is the best K
         if value == 1 and (key - 5) <= 0:
@@ -308,26 +343,9 @@ def check_if_done():
     return 0,0
 
 
-    # if status_array[1] == 1 and K_array[1] - K_array[0] <= 5:
-    #     print('The best force constant has been found. The force constant is ' + str(K_array[1]) + '.')
-    #     logging.info('The best force constant has been found. The force constant is ' + str(K_array[1]) + '.')
-    #     return 1,K_array[1]
-    # elif status_array[2] == 1 and K_array[2] - K_array[1] <= 5:
-    #     print('The best force constant has been found. The force constant is ' + str(K_array[2]) + '.')
-    #     logging.info('The best force constant has been found. The force constant is ' + str(K_array[2]) + '.')
-    #     return 1,K_array[2]
-    # elif status_array[3] == 1 and K_array[3] - K_array[2] <= 5:
-    #     print('The best force constant has been found. The force constant is ' + str(K_array[3]) + '.')
-    #     logging.info('The best force constant has been found. The force constant is ' + str(K_array[3]) + '.')
-    #     return 1,K_array[3]
-    # else:
-    #     print('The best force constant has not yet been found.')
-    #     return 0,0
 
 
-
-
-
+# Run equilibration simulations for a domain
 def run_eq(domain: string, iter: int):
     f = open("gro_file.json", "r")
     gro_dict = json.load(f)
@@ -356,7 +374,7 @@ def run_eq(domain: string, iter: int):
     lines.append("pull_coord2_init = " + str(range_low))
     open(mdp_file, 'w').writelines(lines)
 
-    bash_command("gmx_mpi grompp -f pull_eq.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(file_name, gro_file, gro_file, cfg.ndx, cfg.maxwarn))
+    bash_command("gmx_mpi grompp -f pull_eq.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(file_name, gro_file, gro_file, ndx, maxwarn))
     time.sleep(7)
     write_batch(file_name, 'sbatch.sh')
     bash_command("sbatch -J {} -o {} sbatch.sh".format(jobname, output))
@@ -382,26 +400,6 @@ def ask_continue():
         print("Invalid answer. Please try again.")
         ask_continue()
 
-
-
-
-# Unnecessary #
-
-# # Ask the user if they want to remove unnecessary files
-# def cleanup():
-#     print("Removing files from the unsuccessful simulations is recommended.")
-#     # ask user if they want to remove files
-#     answer = input("Do you want to remove files? (y/n)")
-#     if answer == "y":
-#         print("Removing files...")
-#         logging.info('User chose to remove files.')
-#         # remove files
-#     if answer == "n":
-#         print("Not removing files.")
-#         # do not remove files
-#     else:    
-#         print("Invalid answer. Please try again.")
-#         cleanup()
 
 
 
@@ -473,94 +471,29 @@ def analyze(file, domain):
         return 1
 
 
-# Not in use
-# def main():
-#     for domain in cfg.domains:
-#         domain_dict = cfg.domains[domain]
-#         for i in cfg.imports:
-#             bash_command("{}".format(i))
-#         global start
-#         start = domain_dict['start']
-#         global used_Ks
-#         iterations is the difference in the start and end values
-#         iterations = abs(domain_dict['target'] - domain_dict['start'])
-#         for i in range(int(iterations)):
-#             set 5 different K's
-#             global K_array
-#             K_array = np.array([5, 20, 30, 40, 50])
-#             global status_array
-#             res = 0
-#             while res == 0:
-#                 for j in range(5):
-#                     if K_array[j] is not in used_Ks, run simulation
-#                     if K_array[j] not in used_Ks and K_array[j]>0:
-#                         if domain_dict["direction"] == "pull":
-#                             sign=1
-#                         elif domain_dict["direction"] == "push":
-#                             sign=-1
-#                         run_pull(i, K_array[j], domain_dict["name"], sign)
-#                 print("Running simulations for domain " + domain_dict["name"] + " iteration " + str(i))
-#                 logging.info("Running simulations for domain " + domain_dict["name"] + " iteration " + str(i))
-#                 np.append(used_Ks, K_array)
-#                 remove duplicates from used_Ks
-#                 used_Ks = np.unique(used_Ks)
 
-#                 # wait for jobs in mahti to finish
-#                 time.sleep(20)
-#                 print("The simulations should now be running. Wait for them to finish.")
-#                 print("The program will now stop running.")
-#                 sys.exit()
-
-#                 for j in range(5):
-#                     status(j, K_array[j], domain_dict["name"], i)
-
-#                 res, best_K = check_if_done()
-#                 if res == 1:
-#                     global gro_file
-#                     gro_file = 'pull_' + domain_dict["name"] + str(i) + '_' + str(best_K) + '.gro'
-#                     global route
-#                     route += domain_dict["name"] + "/iteration_" + str(i) + "/K_" + str(best_K)
-#                     pullf = "pull_" + domain_dict["name"] + str(i) + "_" + str(best_K) + "f.xvg"
-#                     pullx = "pull_" + domain_dict["name"] + str(i) + "_" + str(best_K) + "x.xvg"
-#                     pull_plot(pullx, pullf)
-#                     print("The best force constant has been found.")
-#                     logging.info("The best force constant has been found.")
-#                 else:
-#                     new_K(status_array, K_array)
-                    
-
-#             gro_file = "pull_" + domain_dict["name"] + str(i) + ".gro"
-#             run_eq(domain_dict["name"], i)
-
-#             if i != int(iterations):
-#                 cleanup()
-#                 ask_continue()
-#             else:
-#                 print("That was the last iteration. The program will stop now.")
-#                 logging.info("That was the last iteration. The program will stop now.")
-
-#             gro_file = "pull_eq_" + domain_dict["name"] + str(i) + ".gro"
 
 
 
 
 # Start a new iteration
-def init(iter: int, idx: int):
+def init(iter: int):
     iter = int(iter)
     read_config()
     # for first iteration
+    # create json files to store variables for later use
     if iter == 0:
-        gro_dict = {"gro_file": cfg.gro}
+        gro_dict = {"gro_file": gro}
         with open("gro_file.json", "w") as f:
             json.dump(gro_dict, f, indent=4)
-        start_dict = {"start": cfg.domains[0]["start"]}
+        start_dict = {"start": config['DOMAIN']["start"]}
         with open("start.json", "w") as f:
             json.dump(start_dict, f, indent=4)
-        last_command = {"last_command": "init " + str(iter) + " " + str(idx)}
+        last_command = {"last_command": "init " + str(iter)}
         with open("last_command.json", "w") as f:
             json.dump(last_command, f, indent=4)
     K_array = np.array([5, 0, 0, 0, 0])
-    K_array[4] = cfg.domains[int(idx)]["K_max"]
+    K_array[4] = config['DOMAIN']["K_max"]
     K_array[2] = (K_array[0] + (K_array[4]-K_array[0])/2)
     # round K's to nearest multiple of 5
     K_array[2] = round(K_array[2]/5)*5
@@ -580,14 +513,14 @@ def init(iter: int, idx: int):
        json.dump(K_dict, f, indent=4)
     with open("status_dict.json", "w") as f:
        json.dump(status_dict, f, indent=4)
-    run_simulation(iter, cfg.domains[int(idx)], K_array)
+    run_simulation(iter, K_array)
     
     
     
 
-
-def run_simulation(iter: int, dom: str, K_array: np.array):
-    domain_dict = dom
+# Run simulations for a domain with an array of K values
+def run_simulation(iter: int, K_array: np.array):
+    domain_dict = config['DOMAIN']
     global start
     # if directory doesnt exist, create it
     if not os.path.exists("iteration{}".format(iter)):
@@ -601,7 +534,7 @@ def run_simulation(iter: int, dom: str, K_array: np.array):
             f = open("start.json", "r")
             start_dict = json.load(f)
             start = start_dict['start']
-            start = float(start) + float(iter)*1.0*sign + 1.5*sign
+            start = float(start) + float(iter)*1.0*sign + float(config['DOMAIN']['deltax'])*sign
             run_pull(iter, K_array[j], domain_dict["name"])
     print("Running simulations for domain " + domain_dict["name"] + " iteration " + str(iter) + " with K= " + str(K_array))
     logging.info("Running simulations for domain " + domain_dict["name"] + " iteration " + str(iter))
@@ -624,10 +557,13 @@ def run_simulation(iter: int, dom: str, K_array: np.array):
     sys.exit()
 
 
-def contpull(iter: int, dom: str, idx: int):
+# Continue from a pulling simulation
+# Check which simulations were successful and continue from there
+# Either run new simulations with new Ks or continue to equilibration
+def contpull(iter: int, dom: str):
     domain_dict = dom
     global status_dict
-    last_command = {"last_command": "contpull " + str(iter) + " " + str(dom) + " " + str(idx)}
+    last_command = {"last_command": "contpull " + str(iter) + " " + str(dom)}
     with open("last_command.json", "w") as f:
         json.dump(last_command, f, indent=4)
     f = open("K_array.json", "r")
@@ -636,8 +572,6 @@ def contpull(iter: int, dom: str, idx: int):
     K_array = np.array(K_array)
     g = open("status_dict.json", "r")
     st_dict = json.load(g)
-    #print(st_dict)
-    #status_dict = st_dict['status_dict']
     status_dict = dict(st_dict)
     h = open("used_Ks.json", "r")
     used_dict = json.load(h)
@@ -645,18 +579,28 @@ def contpull(iter: int, dom: str, idx: int):
     # convert used_Ks elements to int
     used_Ks = [int(i) for i in used_Ks]
     K_array_unique = np.unique(K_array)
-    K_filtered = []
-    for i in K_array_unique:
-        if i not in used_Ks:
-            K_filtered.append(i)
-    K_filtered = np.array(K_filtered)
-    K_filtered = K_array                ## REMOVE THIS LINE AFTER TESTING
+    # print("K_array_unique: ", K_array_unique)
+    # K_filtered = []
+    # for i in K_array_unique:
+    #     if i not in used_Ks:
+    #         K_filtered.append(i)
+    # K_filtered = np.array(K_filtered)
+    # print("K_filtered: ", K_filtered)
+    K_filtered = K_array_unique
     for j in range(len(K_filtered)):
-        bash_command("if compgen -G pull_{}{}_{}.* > /dev/null; then\nmv pull_{}{}_{}.* iteration{}/K={}\nfi".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
-        bash_command("[[ -f pull_{}{}_{}x.xvg ]] && mv pull_{}{}_{}x.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
-        bash_command("[[ -f pull_{}{}_{}f.xvg ]] && mv pull_{}{}_{}f.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
-        bash_command("[[ -f pull_{}{}_{}_prev.cpt ]] && mv pull_{}{}_{}_prev.cpt iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
-        status(j, K_filtered[j], domain_dict, iter)
+        if run_multiple == True:
+            #print("multiples true")
+            for copy in range(1, num_of_copies + 1):
+                bash_command("if compgen -G pull_{}{}_{}_{}.* > /dev/null; then\nmv pull_{}{}_{}_{}.* iteration{}/K={}\nfi".format(dom,iter,K_filtered[j],copy,dom,iter,K_filtered[j],copy,iter,K_filtered[j]))
+                bash_command("[[ -f pull_{}{}_{}_{}x.xvg ]] && mv pull_{}{}_{}_{}x.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],copy,dom,iter,K_filtered[j],copy,iter,K_filtered[j]))
+                bash_command("[[ -f pull_{}{}_{}_{}f.xvg ]] && mv pull_{}{}_{}_{}f.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],copy,dom,iter,K_filtered[j],copy,iter,K_filtered[j]))
+                bash_command("[[ -f pull_{}{}_{}_{}_prev.cpt ]] && mv pull_{}{}_{}_{}_prev.cpt iteration{}/K={}".format(dom,iter,K_filtered[j],copy,dom,iter,K_filtered[j],copy,iter,K_filtered[j]))
+        else:
+            bash_command("if compgen -G pull_{}{}_{}.* > /dev/null; then\nmv pull_{}{}_{}.* iteration{}/K={}\nfi".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+            bash_command("[[ -f pull_{}{}_{}x.xvg ]] && mv pull_{}{}_{}x.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+            bash_command("[[ -f pull_{}{}_{}f.xvg ]] && mv pull_{}{}_{}f.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+            bash_command("[[ -f pull_{}{}_{}_prev.cpt ]] && mv pull_{}{}_{}_prev.cpt iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+        status(K_filtered[j], domain_dict, iter)
     #print(status_dict)
     #print(status_dict['status_dict'])
     status_dict = {int(k):v for k,v in status_dict.items()}
@@ -666,7 +610,7 @@ def contpull(iter: int, dom: str, idx: int):
     with open("status_dict.json", "w") as f:
         json.dump(status_dict, f, indent=4)
 
-
+    # Check if the best K has been found
     res, best_K = check_if_done()
     if res == 1:
         gro_file = 'pull_' + domain_dict + str(iter) + '_' + str(best_K) + '.gro'
@@ -688,10 +632,10 @@ def contpull(iter: int, dom: str, idx: int):
         K_array = new_K(status_dict, K_array)
         K_dict = {"K_array": K_array.tolist()}
         #st_dict = {"status_dict": status_dict}
-        print("Used Ks: {}".format(used_Ks))
+        #print("Used Ks: {}".format(used_Ks))
         # remove duplicates from K_array
         K_array_unique = np.unique(K_array)
-        print("K_array_unique: {}".format(K_array_unique))
+        #print("K_array_unique: {}".format(K_array_unique))
         K_filtered = []
         for i in K_array_unique:
             if i not in used_Ks:
@@ -707,7 +651,7 @@ def contpull(iter: int, dom: str, idx: int):
                     json.dump(K_dict, f, indent=4)
                 with open("status_dict.json", "w") as f:
                     json.dump(status_dict, f, indent=4)
-                run_simulation(iter, cfg.domains[int(idx)], K_filtered)
+                run_simulation(iter, K_filtered)
             elif answer == "n":
                 print("You answered no. Exiting...")
                 logging.info('User chose not to continue. Exiting program.')
@@ -717,9 +661,8 @@ def contpull(iter: int, dom: str, idx: int):
                 ask_cont()
         ask_cont()
 
-    # assume that the sim was successful for some K
-    # ask if the user wants to run equilibration
-    #print("The best force constant has been found.")
+    # Assume that the sim was successful for some K
+    # Ask if the user wants to run equilibration
     def ask_eq():
         answer = input("Do you want to run equilibration? (y/n)")
         if answer == "y":
@@ -727,7 +670,7 @@ def contpull(iter: int, dom: str, idx: int):
             logging.info('User chose to continue to equilibration.')
             f = open("start.json", "r")
             start = json.load(f)
-            current_coord = start['start'] + 1.0
+            current_coord = start['start'] + float(config['DOMAIN']['deltax'])
             start_dict = {"start": current_coord}
             with open("start.json", "w") as f:
                 json.dump(start_dict, f, indent=4)
@@ -759,11 +702,11 @@ def conteq(iter: int, dom: string):
     result=analyze(rmsd_xvg_file, dom)
     print("Result: ", result)
     if result == 0:
-        answer = input("Equilibration was not successful. Do you want to run it again with longer wall time? (y/n)")
+        answer = input("Equilibration was not successful. Do you want to run it again with longer time? (y/n)")
         if answer == "y":
-            print("Running equilibration again with longer wall time")
-            logging.info("Running equilibration again with longer wall time")
-            wall_time(cfg.eq_mdp)
+            print("Running equilibration again with longer time")
+            logging.info("Running equilibration again with longer time")
+            longer_time(eq_mdp)
             run_eq(dom, iter)
         elif answer == "n":
             print("You answered no. Exiting...")
