@@ -37,15 +37,15 @@ If you need help remembering which function does what, what arguments the functi
 
 ## Start
 ```
-python pathfinder.py init 0 0
+python pathfinder.py init 0 
 ```
-Each new iteration of simulations is started with the init command, which takes two arguments as input: the number of the iteration and the index of the domain/group in the config file to be pulled. This will start the first round of simulations with 5 different values of K. These simulations will take about 10 hours, but if you don't want to wait, you can download the files from the folder 'XXXX', and continue to the next step.
+Each new iteration of simulations is started with the init command, which takes one argument as input: the number of the iteration. This will start the first round of simulations with 5 different values of K. These simulations will take about 10 hours, but if you don't want to wait, you can download the files from the folder 'XXXX', and continue to the next step.
 
 ## After init
 ```
-python pathfinder.py contpull 0 'TK' 0
+python pathfinder.py contpull 0 'TK'
 ```
-After pulling simulations, you will always continue with the contpull command, which takes 3 arguments as input: the number of the iteration, the name (abbreviation) of the domain and the index of the domain/group in the config file to be pulled. This command will check if any of the simulations were successful and if the best K has been found. If it has, the program will ask if you wish to continue to equilibration (yes). If it has not, it will calculate new values for K and ask if you want to run this new set of simulations (yes). In this case it should run another set of simulations. Again, these will take multiple hours. Continue with the contpull command until you continue to equilibration.
+After pulling simulations, you will always continue with the contpull command, which takes 2 arguments as input: the number of the iteration and the name (abbreviation) of the domain. This command will check if any of the simulations were successful and if the best K has been found. If it has, the program will ask if you wish to continue to equilibration (yes). If it has not, it will calculate new values for K and ask if you want to run this new set of simulations (yes). In this case it should run another set of simulations. Again, these will take multiple hours. Continue with the contpull command until you continue to equilibration.
 NOTE: When running contpull, if you encounter an error of type: "ValueError: the number of columns changed from 2 to 1 at row 478; use usecols to select a subset and avoid this error", ignore it for now and just run contpull again. This will be fixed.
 
 ## Continuing to equilibration
