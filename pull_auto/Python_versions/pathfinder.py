@@ -21,7 +21,7 @@ config = configparser.ConfigParser()
 config.read("config.ini")
 ndx = config['FILES']['ndx']
 topol = config['FILES']['topol']
-mdp = config['FILES']['mdp']
+mdp = config['FILES']['pull_mdp']
 eq_mdp = config['FILES']['eq_mdp']
 gro = config['FILES']['gro']
 maxwarn = config['FILES']['maxwarn']
@@ -29,7 +29,11 @@ maxwarn = config['FILES']['maxwarn']
 # domains = json.loads(config.get("DOMAINS", "domains"))
 # print(domains)
 run_multiple = config['COPIES']['run_multiple']
-num_of_copies = config['COPIES']['num_of_copies']
+if run_multiple == 'True':
+    run_multiple = True
+else:
+    run_multiple = False
+num_of_copies = int(config['COPIES']['num_of_copies'])
 
 
 ## LOGGING
@@ -157,6 +161,7 @@ def run_pull(iter: int, K: int, domain: str):
     mdp_file = 'pull_' + str(domain) + '.mdp'
     batch = 'sbatch.sh'
     jobname = str(domain) + str(iter) + '_' + str(K)
+    output = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '.out'
 
     lines = open(mdp_file, 'r').readlines()
     lines[-1] = "\npull_coord1_k = " + str(K) 
@@ -174,15 +179,16 @@ def run_pull(iter: int, K: int, domain: str):
         for copy in range(1, num_of_copies + 1):
             file_name = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '_' + str(copy)
             jobname = str(domain) + str(iter) + '_' + str(K) + '_' + str(copy)
+            output = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '_' + str(copy) + '.out'
             bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, gro_file, gro_file, ndx, maxwarn))
-            time.sleep(7)
+            time.sleep(9)
             write_batch(file_name, batch)
-            bash_command("sbatch -J {} {}".format(jobname, batch))
+            bash_command("sbatch -J {} -o {} {}".format(jobname, output, batch))
     else:
         bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, gro_file, gro_file, ndx, maxwarn))
         time.sleep(7)
         write_batch(file_name, batch)
-        bash_command("sbatch -J {} {}".format(jobname, batch))
+        bash_command("sbatch -J {} -o {} {}".format(jobname, output, batch))
     print("Running {} with K = {}".format(file_name, K))
     time.sleep(10)
 
@@ -202,7 +208,8 @@ def status(K: int, domain: string, iter: int):
         for copy in range(1, num_of_copies + 1):
             file_name = 'iteration' + str(iter) + '/K=' + str(K) + '/pull_' + str(domain) + str(iter) + '_' + str(K) + '_' + str(copy) + 'x.xvg'
             file_name = file_name.replace(" ", "")
-            print(file_name)
+            file_name = file_name.strip()
+            #print(file_name)
             # Check if the difference between the first and last distance in xvg file is greater than 0.9 nm (status=1)
             if os.path.exists(file_name):
                 with open(file_name, 'r') as f:
@@ -220,7 +227,7 @@ def status(K: int, domain: string, iter: int):
                     logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
                     status_dict[int(K)]=1
                     bash_command("cd ../..")
-                    return 1
+                    #return 1
                 else:
                     print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was not successful.')
                     logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was not successful.')
@@ -230,7 +237,7 @@ def status(K: int, domain: string, iter: int):
                     else:
                         status_dict[int(K)]=0
                     bash_command("cd ../..")
-                    return 0
+                    #return 0
             else:
                 print('The xvg file does not exist')
                 logging.error('The xvg file does not exist')
@@ -486,14 +493,14 @@ def init(iter: int):
         gro_dict = {"gro_file": gro}
         with open("gro_file.json", "w") as f:
             json.dump(gro_dict, f, indent=4)
-        start_dict = {"start": config['DOMAIN']["start"]}
+        start_dict = {"start": config['SYSTEM']["start"]}
         with open("start.json", "w") as f:
             json.dump(start_dict, f, indent=4)
         last_command = {"last_command": "init " + str(iter)}
         with open("last_command.json", "w") as f:
             json.dump(last_command, f, indent=4)
     K_array = np.array([5, 0, 0, 0, 0])
-    K_array[4] = config['DOMAIN']["K_max"]
+    K_array[4] = config['SYSTEM']["K_max"]
     K_array[2] = (K_array[0] + (K_array[4]-K_array[0])/2)
     # round K's to nearest multiple of 5
     K_array[2] = round(K_array[2]/5)*5
@@ -520,7 +527,7 @@ def init(iter: int):
 
 # Run simulations for a domain with an array of K values
 def run_simulation(iter: int, K_array: np.array):
-    domain_dict = config['DOMAIN']
+    domain_dict = config['SYSTEM']
     global start
     # if directory doesnt exist, create it
     if not os.path.exists("iteration{}".format(iter)):
@@ -534,7 +541,7 @@ def run_simulation(iter: int, K_array: np.array):
             f = open("start.json", "r")
             start_dict = json.load(f)
             start = start_dict['start']
-            start = float(start) + float(iter)*1.0*sign + float(config['DOMAIN']['deltax'])*sign
+            start = float(start) + float(iter)*1.0*sign + float(config['SYSTEM']['deltax'])*sign + 0.5
             run_pull(iter, K_array[j], domain_dict["name"])
     print("Running simulations for domain " + domain_dict["name"] + " iteration " + str(iter) + " with K= " + str(K_array))
     logging.info("Running simulations for domain " + domain_dict["name"] + " iteration " + str(iter))
@@ -587,6 +594,7 @@ def contpull(iter: int, dom: str):
     # K_filtered = np.array(K_filtered)
     # print("K_filtered: ", K_filtered)
     K_filtered = K_array_unique
+    #print(run_multiple)
     for j in range(len(K_filtered)):
         if run_multiple == True:
             #print("multiples true")
@@ -600,6 +608,7 @@ def contpull(iter: int, dom: str):
             bash_command("[[ -f pull_{}{}_{}x.xvg ]] && mv pull_{}{}_{}x.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
             bash_command("[[ -f pull_{}{}_{}f.xvg ]] && mv pull_{}{}_{}f.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
             bash_command("[[ -f pull_{}{}_{}_prev.cpt ]] && mv pull_{}{}_{}_prev.cpt iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+        time.sleep(3)
         status(K_filtered[j], domain_dict, iter)
     #print(status_dict)
     #print(status_dict['status_dict'])
@@ -670,7 +679,7 @@ def contpull(iter: int, dom: str):
             logging.info('User chose to continue to equilibration.')
             f = open("start.json", "r")
             start = json.load(f)
-            current_coord = start['start'] + float(config['DOMAIN']['deltax'])
+            current_coord = start['start'] + float(config['SYSTEM']['deltax'])
             start_dict = {"start": current_coord}
             with open("start.json", "w") as f:
                 json.dump(start_dict, f, indent=4)
