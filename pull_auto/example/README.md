@@ -24,7 +24,7 @@ The tool works in iterations, with the same stages repeating in each iteration.
 ## Setup
 Here solvation, energy minimization, equilibration etc. have all been done for you.
 When using this tool (except for this demo), you need to do these yourself.
-* modify templates as needed and fill in config.py
+* modify templates as needed and fill in config.ini
 * login to mahti
 * copy needed files into your mahti repo
 * import gromacs and python-data (module load ...)
