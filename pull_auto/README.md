@@ -39,6 +39,12 @@ python pathfinder.py help
 If you need help remembering which function does what, what arguments the 
 functions take as input, or what command you ran previously, you can call the 'help' function.
 
+## Revert
+```
+python pathfinder.py revert
+```
+If you run into a situation where you encounter a warning or an error during the simulation and need to restart it, use the revert command to revert the K_array to the previous stage. If you don't, you will notice that contpull will check the wrong K's and will not work correctly.
+
 ## Start
 ```
 python pathfinder.py init 0 
@@ -50,9 +56,9 @@ the first round of simulations with 5 different values of K.
 
 ## After init
 ```
-python pathfinder.py contpull 0 'SYSTEM'
+python pathfinder.py contpull 0 
 ```
-After pulling simulations, you will always continue with the contpull command, which takes 2 arguments as input: the number of the iteration and the name (abbreviation) of the system. This command will check if any of the simulations were successful and if the best K has been found. If it has, the program will ask if you wish to continue to equilibration (yes). If it has not, it will calculate new values for K and ask if you want to run this new set of simulations (yes). Keep running contpull command until you found the best K, and then continue to equilibration.
+After pulling simulations, you will always continue with the contpull command, which takes one argument as input: the number of the iteration (starting from 0). This command will check if any of the simulations were successful and if the best K has been found. If it has, the program will ask if you wish to continue to equilibration (yes). If it has not, it will calculate new values for K and ask if you want to run this new set of simulations (yes). Keep running contpull command until you found the best K, and then continue to equilibration.
 NOTE: When running contpull, if you encounter an error of type: "ValueError: the number of columns changed from 2 to 1 at row 478; use usecols to select a subset and avoid this error", ignore it for now and just run contpull again. This will be fixed.
 
 ## Continuing to equilibration
@@ -60,9 +66,9 @@ When the best force constant K has been found, the program will continue from th
 
 ## After equilibration
 ```
-python pathfinder.py conteq 0 'SYSTEM'
+python pathfinder.py conteq 0 
 ```
-After equilibration, the conteq command will check if the structure is equilibrated enough. The command takes two arguments as input: the number of the iteration and the name (abbreviation) of the domain. If the equilibration time was too short and the structure is not equilibrated enough, it will double the running time and run the equilibration again. If the equilibration was successful, the program will tell you and exit, and now you are ready to continue into the next iteration if you wish. 
+After equilibration, the conteq command will check if the structure is equilibrated enough. The command takes one argument as input: the number of the iteration (starting from 0). If the equilibration time was too short and the structure is not equilibrated enough, it will double the running time and run the equilibration again. If the equilibration was successful, the program will tell you and exit, and now you are ready to continue into the next iteration if you wish. 
 
 
 

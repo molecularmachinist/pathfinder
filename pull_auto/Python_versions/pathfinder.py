@@ -34,11 +34,12 @@ if run_multiple == 'True':
 else:
     run_multiple = False
 num_of_copies = int(config['COPIES']['num_of_copies'])
+eq_range = float(config['SYSTEM']['eq_range'])
 
 
 ## LOGGING
 logging.basicConfig(filename='log_pathfinder.log', level=logging.DEBUG)
-logging.info('Starting program')
+#logging.info('Starting program')
 
 
 # Run bash commands
@@ -56,8 +57,8 @@ def help():
     print("Commands:")
     print("\thelp - prints this message")
     print("\tinit 'iter' 'idx' - initializes the simulation")
-    print("\tcontpull 'iter' 'domain' 'idx' - continues from the previous pulling simulation")
-    print("\tconteq 'iter' 'domain' - continues from the previous equilibration simulation")
+    print("\tcontpull 'iter' - continues from the previous pulling simulation")
+    print("\tconteq 'iter' - continues from the previous equilibration simulation")
     with open('last_command.json', 'r') as f:
         last_command = json.load(f)
     print("\nThe lates command you ran was: " + last_command['last_command'])
@@ -373,8 +374,8 @@ def run_eq(domain: string, iter: int):
     f = open("start.json", "r")
     start = json.load(f)
     current_coord = start['start']
-    range_high = current_coord + 0.25
-    range_low = current_coord - 0.25
+    range_high = current_coord + eq_range
+    range_low = current_coord - eq_range
 
     #insert new lines into mdp file
     lines.append("pull_coord1_init = " + str(range_high) + "\n")
@@ -567,10 +568,11 @@ def run_simulation(iter: int, K_array: np.array):
 # Continue from a pulling simulation
 # Check which simulations were successful and continue from there
 # Either run new simulations with new Ks or continue to equilibration
-def contpull(iter: int, dom: str):
-    domain_dict = dom
+def contpull(iter: int):
+    domain_dict = config['SYSTEM']['name']
+    dom = config['SYSTEM']['name']
     global status_dict
-    last_command = {"last_command": "contpull " + str(iter) + " " + str(dom)}
+    last_command = {"last_command": "contpull " + str(iter)}
     with open("last_command.json", "w") as f:
         json.dump(last_command, f, indent=4)
     f = open("K_array.json", "r")
@@ -638,6 +640,9 @@ def contpull(iter: int, dom: str):
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, gro_file))
     else:
         print("The best force constant has not been found yet.")
+        prev_Ks = {"prev_Ks": K_array.tolist()}
+        with open("prev_Ks.json", "w") as f:
+            json.dump(prev_Ks, f, indent=4)
         K_array = new_K(status_dict, K_array)
         K_dict = {"K_array": K_array.tolist()}
         #st_dict = {"status_dict": status_dict}
@@ -696,8 +701,9 @@ def contpull(iter: int, dom: str):
 
 # Continue simulations
 # First check status and check if done
-def conteq(iter: int, dom: string):
-    last_command = {"last_command": "conteq " + str(iter) + " " + str(dom)}
+def conteq(iter: int):
+    dom = config['SYSTEM']['name']
+    last_command = {"last_command": "conteq " + str(iter)}
     with open("last_command.json", "w") as f:
         json.dump(last_command, f, indent=4)
 
@@ -729,6 +735,16 @@ def conteq(iter: int, dom: string):
         gro_dict = {"gro_file": gro_file}
         with open("gro_file.json", "w") as f:
             json.dump(gro_dict, f, indent=4)
+
+
+def revert():
+    f = open("prev_Ks.json", "r")
+    prev_Ks = json.load(f)
+    K_array = np.array(prev_Ks['prev_Ks'])
+    K_dict = {"K_array": K_array.tolist()}
+    with open("K_array.json", "w") as f:
+        json.dump(K_dict, f, indent=4)
+    print("K_array has been reverted to previous K_array")
 
 
 if __name__ == '__main__':
