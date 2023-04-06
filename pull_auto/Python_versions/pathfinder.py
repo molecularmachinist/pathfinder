@@ -25,6 +25,7 @@ mdp = config['FILES']['pull_mdp']
 eq_mdp = config['FILES']['eq_mdp']
 gro = config['FILES']['gro']
 maxwarn = config['FILES']['maxwarn']
+deltax = float(config['COORD1']['deltax'])
 #num_of_domains = config['DOMAINS']['num_of_domains']
 # domains = json.loads(config.get("DOMAINS", "domains"))
 # print(domains)
@@ -34,7 +35,7 @@ if run_multiple == 'True':
 else:
     run_multiple = False
 num_of_copies = int(config['COPIES']['num_of_copies'])
-eq_range = float(config['SYSTEM']['eq_range'])
+eq_range = float(config['COORD1']['eq_range'])
 
 
 ## LOGGING
@@ -56,12 +57,12 @@ def help():
     print("\nAll commands start with 'python pathfinder.py' followed by the command and arguments")
     print("Commands:")
     print("\thelp - prints this message")
-    print("\tinit 'iter' 'idx' - initializes the simulation")
+    print("\tinit 'iter' - initializes the simulation")
     print("\tcontpull 'iter' - continues from the previous pulling simulation")
     print("\tconteq 'iter' - continues from the previous equilibration simulation")
     with open('last_command.json', 'r') as f:
         last_command = json.load(f)
-    print("\nThe lates command you ran was: " + last_command['last_command'])
+    print("\nThe latest command you ran was: " + last_command['last_command'])
 
 
 
@@ -82,7 +83,7 @@ def read_config():
         sys.exit()
 
     # check that mdp file has mdp suffix
-    if config['FILES']['mdp'][-4:] != '.mdp':
+    if config['FILES']['pull_mdp'][-4:] != '.mdp':
         print('The mdp file must have the suffix .mdp')
         logging.error('The mdp file does not have the suffix .mdp')
         sys.exit()
@@ -159,7 +160,7 @@ def longer_time(mdp_file: string):
 # First runs grompp, and then sbatch
 def run_pull(iter: int, K: int, domain: str):
     file_name = 'pull_' + str(domain) + str(iter) + '_' + str(K)
-    mdp_file = 'pull_' + str(domain) + '.mdp'
+    mdp_file = 'pull.mdp'
     batch = 'sbatch.sh'
     jobname = str(domain) + str(iter) + '_' + str(K)
     output = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '.out'
@@ -181,12 +182,12 @@ def run_pull(iter: int, K: int, domain: str):
             file_name = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '_' + str(copy)
             jobname = str(domain) + str(iter) + '_' + str(K) + '_' + str(copy)
             output = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '_' + str(copy) + '.out'
-            bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, gro_file, gro_file, ndx, maxwarn))
+            bash_command("gmx_mpi grompp -f pull.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(file_name, gro_file, gro_file, ndx, maxwarn))
             time.sleep(9)
             write_batch(file_name, batch)
             bash_command("sbatch -J {} -o {} {}".format(jobname, output, batch))
     else:
-        bash_command("gmx_mpi grompp -f pull_{}.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(domain, file_name, gro_file, gro_file, ndx, maxwarn))
+        bash_command("gmx_mpi grompp -f pull.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(file_name, gro_file, gro_file, ndx, maxwarn))
         time.sleep(7)
         write_batch(file_name, batch)
         bash_command("sbatch -J {} -o {} {}".format(jobname, output, batch))
@@ -211,7 +212,7 @@ def status(K: int, domain: string, iter: int):
             file_name = file_name.replace(" ", "")
             file_name = file_name.strip()
             #print(file_name)
-            # Check if the difference between the first and last distance in xvg file is greater than 0.9 nm (status=1)
+            # Check if the difference between the first and last distance in xvg file is greater than deltax nm (status=1)
             if os.path.exists(file_name):
                 with open(file_name, 'r') as f:
                     for i, line in enumerate(f):
@@ -223,7 +224,7 @@ def status(K: int, domain: string, iter: int):
                         pass
                     line = line.split()
                     last = line[1]
-                if abs(float(last) - float(first)) >= 0.9:
+                if abs(float(last) - float(first)) >= deltax:
                     print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
                     logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
                     status_dict[int(K)]=1
@@ -359,12 +360,12 @@ def run_eq(domain: string, iter: int):
     gro_dict = json.load(f)
     gro_file = gro_dict['gro_file']
     file_name = 'pull_eq_' + str(domain) + str(iter)
-    mdp_file = 'pull_eq.mdp'
+    mdp_file = 'eq.mdp'
     jobname = 'eq_' + str(domain)
     output = 'eq_' + str(domain) + '.out'
 
     bash_command("cd iteration{}".format(iter))
-    bash_command("mkdir -p eq")
+    bash_command("mkdir -p iteration{}/eq".format(iter))
     bash_command("cd ..")
 
     #delete last 2 lines of mdp file
@@ -382,7 +383,7 @@ def run_eq(domain: string, iter: int):
     lines.append("pull_coord2_init = " + str(range_low))
     open(mdp_file, 'w').writelines(lines)
 
-    bash_command("gmx_mpi grompp -f pull_eq.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(file_name, gro_file, gro_file, ndx, maxwarn))
+    bash_command("gmx_mpi grompp -f eq.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(file_name, gro_file, gro_file, ndx, maxwarn))
     time.sleep(7)
     write_batch(file_name, 'sbatch.sh')
     bash_command("sbatch -J {} -o {} sbatch.sh".format(jobname, output))
@@ -494,14 +495,14 @@ def init(iter: int):
         gro_dict = {"gro_file": gro}
         with open("gro_file.json", "w") as f:
             json.dump(gro_dict, f, indent=4)
-        start_dict = {"start": config['SYSTEM']["start"]}
+        start_dict = {"start": config['COORD1']["start"]}
         with open("start.json", "w") as f:
             json.dump(start_dict, f, indent=4)
         last_command = {"last_command": "init " + str(iter)}
         with open("last_command.json", "w") as f:
             json.dump(last_command, f, indent=4)
     K_array = np.array([5, 0, 0, 0, 0])
-    K_array[4] = config['SYSTEM']["K_max"]
+    K_array[4] = config['COORD1']["K_max"]
     K_array[2] = (K_array[0] + (K_array[4]-K_array[0])/2)
     # round K's to nearest multiple of 5
     K_array[2] = round(K_array[2]/5)*5
@@ -528,7 +529,7 @@ def init(iter: int):
 
 # Run simulations for a domain with an array of K values
 def run_simulation(iter: int, K_array: np.array):
-    domain_dict = config['SYSTEM']
+    domain_dict = config['COORD1']
     global start
     # if directory doesnt exist, create it
     if not os.path.exists("iteration{}".format(iter)):
@@ -542,10 +543,10 @@ def run_simulation(iter: int, K_array: np.array):
             f = open("start.json", "r")
             start_dict = json.load(f)
             start = start_dict['start']
-            start = float(start) + float(iter)*1.0*sign + float(config['SYSTEM']['deltax'])*sign + 0.5
+            start = float(start) + float(config['COORD1']['deltax'])*sign + 0.5
             run_pull(iter, K_array[j], domain_dict["name"])
-    print("Running simulations for domain " + domain_dict["name"] + " iteration " + str(iter) + " with K= " + str(K_array))
-    logging.info("Running simulations for domain " + domain_dict["name"] + " iteration " + str(iter))
+    print("Running simulations for system " + domain_dict["name"] + " iteration " + str(iter) + " with K= " + str(K_array))
+    logging.info("Running simulations for system " + domain_dict["name"] + " iteration " + str(iter))
     f = open("used_Ks.json", "r")
     used_dict = json.load(f)
     used_Ks = used_dict['used_Ks']
@@ -569,8 +570,8 @@ def run_simulation(iter: int, K_array: np.array):
 # Check which simulations were successful and continue from there
 # Either run new simulations with new Ks or continue to equilibration
 def contpull(iter: int):
-    domain_dict = config['SYSTEM']['name']
-    dom = config['SYSTEM']['name']
+    domain_dict = config['COORD1']['name']
+    dom = config['COORD1']['name']
     global status_dict
     last_command = {"last_command": "contpull " + str(iter)}
     with open("last_command.json", "w") as f:
@@ -613,7 +614,7 @@ def contpull(iter: int):
         time.sleep(3)
         status(K_filtered[j], domain_dict, iter)
     #print(status_dict)
-    #print(status_dict['status_dict'])
+    #print(status_dict['status_dict']) 
     status_dict = {int(k):v for k,v in status_dict.items()}
     status_dict = {k:status_dict[k] for k in sorted(status_dict)}
     print("status_dict: ", status_dict)
@@ -684,7 +685,7 @@ def contpull(iter: int):
             logging.info('User chose to continue to equilibration.')
             f = open("start.json", "r")
             start = json.load(f)
-            current_coord = start['start'] + float(config['SYSTEM']['deltax'])
+            current_coord = float(start['start']) + float(config['COORD1']['deltax'])
             start_dict = {"start": current_coord}
             with open("start.json", "w") as f:
                 json.dump(start_dict, f, indent=4)
@@ -702,7 +703,7 @@ def contpull(iter: int):
 # Continue simulations
 # First check status and check if done
 def conteq(iter: int):
-    dom = config['SYSTEM']['name']
+    dom = config['COORD1']['name']
     last_command = {"last_command": "conteq " + str(iter)}
     with open("last_command.json", "w") as f:
         json.dump(last_command, f, indent=4)
@@ -735,6 +736,7 @@ def conteq(iter: int):
         gro_dict = {"gro_file": gro_file}
         with open("gro_file.json", "w") as f:
             json.dump(gro_dict, f, indent=4)
+        bash_command("mv eq/{} .".format(gro_file))
 
 
 def revert():
