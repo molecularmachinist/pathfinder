@@ -17,6 +17,7 @@ import math
 import json
 
 
+# set up variables from config file (config.ini)
 config = configparser.ConfigParser()
 config.read("config.ini")
 ndx = config['FILES']['ndx']
@@ -26,9 +27,6 @@ eq_mdp = config['FILES']['eq_mdp']
 gro = config['FILES']['gro']
 maxwarn = config['FILES']['maxwarn']
 deltax = float(config['COORD1']['deltax'])
-#num_of_domains = config['DOMAINS']['num_of_domains']
-# domains = json.loads(config.get("DOMAINS", "domains"))
-# print(domains)
 run_multiple = config['COPIES']['run_multiple']
 if run_multiple == 'True':
     run_multiple = True
@@ -38,12 +36,13 @@ num_of_copies = int(config['COPIES']['num_of_copies'])
 eq_range = float(config['COORD1']['eq_range'])
 
 
-## LOGGING
+# Logging
+# TODO - logging is not implemented completely yet
 logging.basicConfig(filename='log_pathfinder.log', level=logging.DEBUG)
-#logging.info('Starting program')
+logging.info('Starting program')
 
 
-# Run bash commands
+# A function for running bash commands
 def bash_command(cmd):
     subprocess.Popen(cmd, shell=True, executable='/bin/bash', stdin=None, stdout=None, stderr=None)
 
@@ -67,7 +66,7 @@ def help():
 
 
 # Error handling for inputs and config file
-# Stop script if input is incorrect
+# Stops the program if there is an error in the inputs or config file
 def read_config():
 
     # check that index file has ndx suffix
@@ -88,17 +87,11 @@ def read_config():
         logging.error('The mdp file does not have the suffix .mdp')
         sys.exit()
 
-    # # check that the number of domains is greater than 0
-    # if len(config['DOMAINS']['domains']) < 1:
-    #     print('The number of domains must be greater than 0')
-    #     logging.error('The number of domains is less than 1')
-    #     sys.exit()
-
-    # # check that the number of domains matches the length of domains array
-    # if len(config['DOMAINS']['domains']) != config['DOMAINS']['num_of_domains']:
-    #     print('The number of domains must match the length of the domains array')
-    #     logging.error('The number of domains does not match the length of the domains array')
-    #     sys.exit()
+    # check that the config file has a COORD1 section
+    if 'COORD1' not in config:
+        print('The config file must have a COORD1 section, at least one coordinate must be specified')
+        logging.error('The config file does not have a COORD1 section')
+        sys.exit()
 
     # check that the number of copies is greater than 0
     if config['COPIES']['run_multiple'] == True and config['COPIES']['num_of_copies'] < 1:
@@ -117,7 +110,7 @@ def read_config():
 
 
 
-# Write srun command to batch file
+# Write gromacs mdrun command to the batch file
 def write_batch(file_name: string, sbatch: string):
     command = 'srun gmx_mpi mdrun -deffnm {} -pf {}f.xvg -px {}x.xvg'.format(file_name, file_name, file_name)
     # remove last line from sbatch.sh
@@ -132,7 +125,7 @@ def write_batch(file_name: string, sbatch: string):
     
 
 
-# Doubles nsteps in mdp file when 
+# Doubles the number of steps in mdp file when equilibration wasn't successful
 def longer_time(mdp_file: string):
     # take 6th line from mdp file
     with open(mdp_file, 'r') as f:
@@ -152,24 +145,20 @@ def longer_time(mdp_file: string):
 
 
 
-
-
-
 # Set up and run a pulling simulation
 # Runs individual simulations for each K
 # First runs grompp, and then sbatch
 def run_pull(iter: int, K: int, domain: str):
     file_name = 'pull_' + str(domain) + str(iter) + '_' + str(K)
-    mdp_file = 'pull.mdp'
     batch = 'sbatch.sh'
     jobname = str(domain) + str(iter) + '_' + str(K)
     output = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '.out'
 
-    lines = open(mdp_file, 'r').readlines()
+    lines = open(mdp, 'r').readlines()
     lines[-1] = "\npull_coord1_k = " + str(K) 
     global start
     lines[-2] = "pull_coord1_init = " + str(start)
-    open(mdp_file, 'w').writelines(lines)
+    open(mdp, 'w').writelines(lines)
 
     f = open("gro_file.json", "r")
     gro_dict = json.load(f)
@@ -183,11 +172,13 @@ def run_pull(iter: int, K: int, domain: str):
             jobname = str(domain) + str(iter) + '_' + str(K) + '_' + str(copy)
             output = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '_' + str(copy) + '.out'
             bash_command("gmx_mpi grompp -f pull.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(file_name, gro_file, gro_file, ndx, maxwarn))
+            # sleep commands so that grompps are finished before mdruns are submitted
             time.sleep(9)
             write_batch(file_name, batch)
             bash_command("sbatch -J {} -o {} {}".format(jobname, output, batch))
     else:
         bash_command("gmx_mpi grompp -f pull.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(file_name, gro_file, gro_file, ndx, maxwarn))
+        # sleep commands so that grompps are finished before mdruns are submitted
         time.sleep(7)
         write_batch(file_name, batch)
         bash_command("sbatch -J {} -o {} {}".format(jobname, output, batch))
@@ -201,9 +192,10 @@ def run_pull(iter: int, K: int, domain: str):
 
 
 
-# Determine status (0 or 1) for each K/simulation
+# Determine status (0 or 1) for each K separately
 # 0 means K wasn't able to pull/push, and 1 means
 def status(K: int, domain: string, iter: int):
+    # status_dict is a dictionary that stores the status (success) of each K
     global status_dict
     # Check status of copies
     if run_multiple == True:
@@ -211,25 +203,25 @@ def status(K: int, domain: string, iter: int):
             file_name = 'iteration' + str(iter) + '/K=' + str(K) + '/pull_' + str(domain) + str(iter) + '_' + str(K) + '_' + str(copy) + 'x.xvg'
             file_name = file_name.replace(" ", "")
             file_name = file_name.strip()
-            #print(file_name)
             # Check if the difference between the first and last distance in xvg file is greater than deltax nm (status=1)
             if os.path.exists(file_name):
+                # get first distance
                 with open(file_name, 'r') as f:
                     for i, line in enumerate(f):
                         if i == 17:
                             line = line.split()
-                            first = line[1]
+                            first_dist = line[1]
+                # get last distance
                 with open(file_name, 'r') as f:
                     for i, line in enumerate(f):
                         pass
                     line = line.split()
-                    last = line[1]
-                if abs(float(last) - float(first)) >= deltax:
+                    last_dist = line[1]
+                if abs(float(last_dist) - float(first_dist)) >= deltax:
                     print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
                     logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
                     status_dict[int(K)]=1
                     bash_command("cd ../..")
-                    #return 1
                 else:
                     print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was not successful.')
                     logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was not successful.')
@@ -239,39 +231,37 @@ def status(K: int, domain: string, iter: int):
                     else:
                         status_dict[int(K)]=0
                     bash_command("cd ../..")
-                    #return 0
             else:
                 print('The xvg file does not exist')
                 logging.error('The xvg file does not exist')
-    # Check status of single copy
+    # Check status of a single copy
     else:
         file_name = 'iteration' + str(iter) + '/K=' + str(K) + '/pull_' + str(domain) + str(iter) + '_' + str(K) + 'x.xvg'
         file_name = file_name.replace(" ", "")
-        #print(file_name)
         # Check if the difference between the first and last distance in xvg file is greater than 0.9 nm (status=1)
         if os.path.exists(file_name):
+            # get first distance
             with open(file_name, 'r') as f:
                 for i, line in enumerate(f):
                     if i == 17:
                         line = line.split()
-                        first = line[1]
+                        first_dist = line[1]
+            # get last distance
             with open(file_name, 'r') as f:
                 for i, line in enumerate(f):
                     pass
                 line = line.split()
-                last = line[1]
-            if abs(float(last) - float(first)) >= 0.9:
+                last_dist = line[1]
+            if abs(float(last_dist) - float(first_dist)) >= 0.9:
                 print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
                 logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
                 status_dict[int(K)]=1
                 bash_command("cd ../..")
-                return 1
             else:
                 print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
                 logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
                 status_dict[int(K)]=0
                 bash_command("cd ../..")
-                return 0
         else:
             print('The xvg file does not exist')
             logging.error('The xvg file does not exist')
@@ -279,7 +269,7 @@ def status(K: int, domain: string, iter: int):
 
 
 
-# Determine new K values for next set of simulations
+# Determine/calculate new K values for next set of simulations
 def new_K(status_array, K_array):
     # Check which K was successful
     # This will determine the new K max and the rest of the Ks
@@ -319,17 +309,16 @@ def new_K(status_array, K_array):
     status_array = np.zeros((5))
     status_array[4] = 1
 
-
     print('New K_array: ' + str(K_array))
     logging.info('New K_array: ' + str(K_array))
     # if K_array contains duplicates
     if len(K_array) != len(set(K_array)):
-        print("K_array contains duplicates, but don't worry, we will only run the simulations once.")
+        print("K_array contains duplicates, but don't worry, we will only run the necessary simulations once.")
     return K_array
 
 
 
-# Check if the best K has been found
+# Check if the best K (or Ks) has been found
 def check_if_done():
     # go through status_dict and sort
     g = open("status_dict.json", "r")
@@ -360,7 +349,6 @@ def run_eq(domain: string, iter: int):
     gro_dict = json.load(f)
     gro_file = gro_dict['gro_file']
     file_name = 'pull_eq_' + str(domain) + str(iter)
-    mdp_file = 'eq.mdp'
     jobname = 'eq_' + str(domain)
     output = 'eq_' + str(domain) + '.out'
 
@@ -369,20 +357,22 @@ def run_eq(domain: string, iter: int):
     bash_command("cd ..")
 
     #delete last 2 lines of mdp file
-    lines = open(mdp_file, 'r').readlines()
+    lines = open(eq_mdp, 'r').readlines()
     del lines[-2:]
 
+    # set up equilibration range
     f = open("start.json", "r")
     start = json.load(f)
     current_coord = start['start']
     range_high = current_coord + eq_range
     range_low = current_coord - eq_range
 
-    #insert new lines into mdp file
+    #insert new lines with equilibration range into mdp file
     lines.append("pull_coord1_init = " + str(range_high) + "\n")
     lines.append("pull_coord2_init = " + str(range_low))
-    open(mdp_file, 'w').writelines(lines)
+    open(eq_mdp, 'w').writelines(lines)
 
+    # run grompp and mdrun for equilibration
     bash_command("gmx_mpi grompp -f eq.mdp -o {}.tpr -c {} -r {} -p topol.top -n {} -maxwarn {}".format(file_name, gro_file, gro_file, ndx, maxwarn))
     time.sleep(7)
     write_batch(file_name, 'sbatch.sh')
@@ -408,7 +398,6 @@ def ask_continue():
     else:
         print("Invalid answer. Please try again.")
         ask_continue()
-
 
 
 
@@ -472,14 +461,7 @@ def analyze(file, domain):
     figure.tight_layout()
     plt.savefig('rmsd.png')
     plt.show()
-    if res == 0:
-        #print("The equilibration wasn't successful. The structure isn't equilibrated enough.")
-        return 0
-    else:
-        #print("The equilibration was successful.")
-        return 1
-
-
+    return res
 
 
 
