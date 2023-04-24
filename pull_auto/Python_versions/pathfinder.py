@@ -156,7 +156,10 @@ def run_pull(iter: int, K: int, domain: str):
     output = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '.out'
 
     lines = open(mdp, 'r').readlines()
-    lines[-1] = "\npull_coord1_k = " + str(K) 
+    if (config["COORD1"]["direction"] == "push"):
+        lines[-1] = "\npull_coord1_k = -" + str(K)
+    else:
+        lines[-1] = "\npull_coord1_k = " + str(K) 
     global start
     lines[-2] = "pull_coord1_init = " + str(start)
     open(mdp, 'w').writelines(lines)
@@ -212,14 +215,14 @@ def status(K: int, domain: string, iter: int):
                         if i == 17:
                             line = line.split()
                             first_dist = line[1]
-                            print("Starting distance: ", first_dist)
+                            #print("Starting distance: ", first_dist)
                 # get last distance
                 with open(file_name, 'r') as f:
                     for i, line in enumerate(f):
                         pass
                     line = line.split()
                     last_dist = line[1]
-                    print("Ending distance: ", last_dist)
+                    #print("Ending distance: ", last_dist)
                 if abs(float(last_dist) - float(first_dist)) >= deltax:
                     print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
                     logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
@@ -249,12 +252,14 @@ def status(K: int, domain: string, iter: int):
                     if i == 17:
                         line = line.split()
                         first_dist = line[1]
+                        #print("Starting distance: ", first_dist)
             # get last distance
             with open(file_name, 'r') as f:
                 for i, line in enumerate(f):
                     pass
                 line = line.split()
                 last_dist = line[1]
+                #print("Ending distance: ", last_dist)
             if abs(float(last_dist) - float(first_dist)) >= 0.9:
                 print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
                 logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
