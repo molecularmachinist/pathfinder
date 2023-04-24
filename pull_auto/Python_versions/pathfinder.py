@@ -110,6 +110,7 @@ def read_config():
 
 
 
+
 # Write gromacs mdrun command to the batch file
 def write_batch(file_name: string, sbatch: string):
     command = 'srun gmx_mpi mdrun -deffnm {} -pf {}f.xvg -px {}x.xvg'.format(file_name, file_name, file_name)
@@ -211,12 +212,14 @@ def status(K: int, domain: string, iter: int):
                         if i == 17:
                             line = line.split()
                             first_dist = line[1]
+                            print("Starting distance: ", first_dist)
                 # get last distance
                 with open(file_name, 'r') as f:
                     for i, line in enumerate(f):
                         pass
                     line = line.split()
                     last_dist = line[1]
+                    print("Ending distance: ", last_dist)
                 if abs(float(last_dist) - float(first_dist)) >= deltax:
                     print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
                     logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
@@ -437,7 +440,7 @@ def pull_plot(pullx_file, pullf_file):
 
 
 
-# Analyze the rmsd plot and determine if the equilibration was successful
+# Analyze the rmsd plot slope and determine if the equilibration was successful
 def analyze(file, domain):
     x,y = np.loadtxt(file,comments=["@","#"],unpack=True)
     n=math.ceil(0.8*len(x))
@@ -445,7 +448,7 @@ def analyze(file, domain):
     y=y[-n:]
     slope=linregress(x,y).slope
     slope=float('{:f}'.format(slope))  
-    #print("Slope:", slope)         #Write slope into output file
+    # if slope is less than 0.25 and greater than -0.25, equilibration was successful
     if slope < 0.25 and slope > -0.25:
         res=1
     else:
@@ -474,15 +477,19 @@ def init(iter: int):
     # for first iteration
     # create json files to store variables for later use
     if iter == 0:
+        # gro_file has the name of the current gro file, will change with each iteration
         gro_dict = {"gro_file": gro}
         with open("gro_file.json", "w") as f:
             json.dump(gro_dict, f, indent=4)
+        # start has the starting coordinate for the next iteration, will increase with deltax with each iteration
         start_dict = {"start": config['COORD1']["start"]}
         with open("start.json", "w") as f:
             json.dump(start_dict, f, indent=4)
+        # last_command has the last command that was executed, can help with debugging and the user
         last_command = {"last_command": "init " + str(iter)}
         with open("last_command.json", "w") as f:
             json.dump(last_command, f, indent=4)
+    # create staring K_array, where K_min is always 5 and K_max comes from config file
     K_array = np.array([5, 0, 0, 0, 0])
     K_array[4] = config['COORD1']["K_max"]
     K_array[2] = (K_array[0] + (K_array[4]-K_array[0])/2)
@@ -498,10 +505,13 @@ def init(iter: int):
     K_dict = {"K_array": K_array.tolist()}
     status_dict = {}
     used_Ks = {"used_Ks": []}
+    # used_Ks is a list of K values that have already been used in the simulation of this iteration
     with open("used_Ks.json", "w") as f:
        json.dump(used_Ks, f, indent=4)
+    # K_array is an array of the current K values 
     with open("K_array.json", "w") as f:
        json.dump(K_dict, f, indent=4)
+    # status_dict is a dictionary of the status of each K value, currently full of zeros
     with open("status_dict.json", "w") as f:
        json.dump(status_dict, f, indent=4)
     run_simulation(iter, K_array)
@@ -509,23 +519,27 @@ def init(iter: int):
     
     
 
-# Run simulations for a domain with an array of K values
+# Run simulations for a coordinate with an array of K values (1-5 values)
 def run_simulation(iter: int, K_array: np.array):
     domain_dict = config['COORD1']
     global start
-    # if directory doesnt exist, create it
+    # if directory for this iteration doesnt exist, create it
     if not os.path.exists("iteration{}".format(iter)):
         bash_command("mkdir -p iteration{}".format(iter))
     for j in range(len(K_array)):
         if K_array[j]>0:
+            # pull together
             if domain_dict["direction"] == "pull":
                 sign=1.0
+            # or push apart
             elif domain_dict["direction"] == "push":
                 sign=-1.0
             f = open("start.json", "r")
             start_dict = json.load(f)
             start = start_dict['start']
-            start = float(start) + float(config['COORD1']['deltax'])*sign + 0.5
+            # add 0.5nm to the target distance to make sure the target is reached
+            start = float(start) + float(config['COORD1']['deltax'])*sign + 0.5*sign
+            # run simulation for this K value
             run_pull(iter, K_array[j], domain_dict["name"])
     print("Running simulations for system " + domain_dict["name"] + " iteration " + str(iter) + " with K= " + str(K_array))
     logging.info("Running simulations for system " + domain_dict["name"] + " iteration " + str(iter))
@@ -582,18 +596,21 @@ def contpull(iter: int):
     #print(run_multiple)
     for j in range(len(K_filtered)):
         if run_multiple == True:
-            #print("multiples true")
             for copy in range(1, num_of_copies + 1):
+                # move files to their folders
                 bash_command("if compgen -G pull_{}{}_{}_{}.* > /dev/null; then\nmv pull_{}{}_{}_{}.* iteration{}/K={}\nfi".format(dom,iter,K_filtered[j],copy,dom,iter,K_filtered[j],copy,iter,K_filtered[j]))
                 bash_command("[[ -f pull_{}{}_{}_{}x.xvg ]] && mv pull_{}{}_{}_{}x.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],copy,dom,iter,K_filtered[j],copy,iter,K_filtered[j]))
                 bash_command("[[ -f pull_{}{}_{}_{}f.xvg ]] && mv pull_{}{}_{}_{}f.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],copy,dom,iter,K_filtered[j],copy,iter,K_filtered[j]))
                 bash_command("[[ -f pull_{}{}_{}_{}_prev.cpt ]] && mv pull_{}{}_{}_{}_prev.cpt iteration{}/K={}".format(dom,iter,K_filtered[j],copy,dom,iter,K_filtered[j],copy,iter,K_filtered[j]))
         else:
+            # move files to their folders
             bash_command("if compgen -G pull_{}{}_{}.* > /dev/null; then\nmv pull_{}{}_{}.* iteration{}/K={}\nfi".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
             bash_command("[[ -f pull_{}{}_{}x.xvg ]] && mv pull_{}{}_{}x.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
             bash_command("[[ -f pull_{}{}_{}f.xvg ]] && mv pull_{}{}_{}f.xvg iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
             bash_command("[[ -f pull_{}{}_{}_prev.cpt ]] && mv pull_{}{}_{}_prev.cpt iteration{}/K={}".format(dom,iter,K_filtered[j],dom,iter,K_filtered[j],iter,K_filtered[j]))
+        # let the file moving finish
         time.sleep(3)
+        # check the status of the simulations
         status(K_filtered[j], domain_dict, iter)
     #print(status_dict)
     #print(status_dict['status_dict']) 
@@ -613,6 +630,7 @@ def contpull(iter: int):
             json.dump(gro_dict, f, indent=4)
         #global route
         #route += domain_dict + "/iteration_" + str(iter) + "/K_" + str(best_K)
+        # make plots of the distance (x) and force (f) during the simulation
         pullf = "pull_" + domain_dict + str(iter) + "_" + str(best_K) + "f.xvg"
         pullx = "pull_" + domain_dict + str(iter) + "_" + str(best_K) + "x.xvg"
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, pullf))
@@ -626,13 +644,13 @@ def contpull(iter: int):
         prev_Ks = {"prev_Ks": K_array.tolist()}
         with open("prev_Ks.json", "w") as f:
             json.dump(prev_Ks, f, indent=4)
+        # get new Ks
         K_array = new_K(status_dict, K_array)
         K_dict = {"K_array": K_array.tolist()}
         #st_dict = {"status_dict": status_dict}
         #print("Used Ks: {}".format(used_Ks))
         # remove duplicates from K_array
         K_array_unique = np.unique(K_array)
-        #print("K_array_unique: {}".format(K_array_unique))
         K_filtered = []
         for i in K_array_unique:
             if i not in used_Ks:
@@ -658,6 +676,8 @@ def contpull(iter: int):
                 ask_cont()
         ask_cont()
 
+
+
     # Assume that the sim was successful for some K
     # Ask if the user wants to run equilibration
     def ask_eq():
@@ -671,6 +691,7 @@ def contpull(iter: int):
             start_dict = {"start": current_coord}
             with open("start.json", "w") as f:
                 json.dump(start_dict, f, indent=4)
+            # equilibrate the system
             run_eq(domain_dict, iter)
         elif answer == "n":
             print("You answered no. Exiting...")
@@ -682,7 +703,8 @@ def contpull(iter: int):
     ask_eq()
 
 
-# Continue simulations
+
+# Continue simulations from the equilibration
 # First check status and check if done
 def conteq(iter: int):
     dom = config['COORD1']['name']
@@ -690,13 +712,13 @@ def conteq(iter: int):
     with open("last_command.json", "w") as f:
         json.dump(last_command, f, indent=4)
 
-    # check if the equilibration is done
+    # check if the equilibration is done by computing the root mean square deviation (RMSD)
     file_name = 'pull_eq_' + str(dom) + str(iter)
     command="gmx_mpi rms -s {}.tpr -f {}.xtc -o {}_rmsd.xvg -tu ns".format(file_name, file_name, file_name)
     subprocess.run([command], input="4 4", text=True, shell=True, executable='/bin/bash')
 
     rmsd_xvg_file = file_name + '_rmsd.xvg'
-    # from analyze.py use function analyze
+    # analyze the slope of the RMSD with analyze function
     result=analyze(rmsd_xvg_file, dom)
     print("Result: ", result)
     if result == 0:
@@ -704,6 +726,7 @@ def conteq(iter: int):
         if answer == "y":
             print("Running equilibration again with longer time")
             logging.info("Running equilibration again with longer time")
+            # double the time of the equilibration
             longer_time(eq_mdp)
             run_eq(dom, iter)
         elif answer == "n":
@@ -713,6 +736,7 @@ def conteq(iter: int):
     else:
         print("Equilibration was successful")
         logging.info("Equilibration was successful")
+        # move the files from the equilibration simulation to the eq folder
         bash_command("if compgen -G pull_eq_{}{}* > /dev/null; then\nmv pull_eq_{}{}* eq\nfi".format(dom,iter,dom,iter))
         gro_file = 'pull_eq_' + dom + str(iter) + '.gro'
         gro_dict = {"gro_file": gro_file}
@@ -721,6 +745,8 @@ def conteq(iter: int):
         bash_command("mv eq/{} .".format(gro_file))
 
 
+# If there are errors when running the simulations
+# and the user wants to revert to the previous K_array
 def revert():
     f = open("prev_Ks.json", "r")
     prev_Ks = json.load(f)
