@@ -28,7 +28,7 @@ Topology and structure files for your system
 
 ## Setup
 * Fill in config.ini with starting parameters
-* Fill in mdp files
+* Fill in mdp files and sbatch.sh
 * Copy needed files into Mahti (currently this tool is designed only for Mahti)
 * In Mahti, import gromacs and python-data (module load ...)
 
