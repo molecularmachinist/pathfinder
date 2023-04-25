@@ -7,8 +7,8 @@ The Pathfinder tool works in iterations, with the same stages repeating in each 
 3. Repeat
 
 ## Before using the tool
-You need to solvation, energy minimization, equilibration or whatever your system needs before using the tool. 
-It is suggested to look at the example (in example folder) before using this tool.
+You need to perform solvation, energy minimization, equilibration or whatever your system needs before using the tool. 
+It is suggested to look at the example (in the example folder) before using this tool.
 
 ## Needed files
 Templates are found in templates folder
