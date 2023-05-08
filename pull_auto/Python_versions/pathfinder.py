@@ -223,7 +223,12 @@ def status(K: int, domain: string, iter: int):
                     line = line.split()
                     last_dist = line[1]
                     #print("Ending distance: ", last_dist)
-                if abs(float(last_dist) - float(first_dist)) >= deltax:
+                if abs(float(last_dist) - float(first_dist)) >= deltax-0.1 and config["COORD1"]["direction"] == "pull":
+                    print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
+                    logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
+                    status_dict[int(K)]=1
+                    bash_command("cd ../..")
+                elif abs(float(first_dist) - float(last_dist)) >= deltax-0.1 and config["COORD1"]["direction"] == "push":
                     print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
                     logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
                     status_dict[int(K)]=1
@@ -260,7 +265,12 @@ def status(K: int, domain: string, iter: int):
                 line = line.split()
                 last_dist = line[1]
                 #print("Ending distance: ", last_dist)
-            if abs(float(last_dist) - float(first_dist)) >= 0.9:
+            if abs(float(last_dist) - float(first_dist)) >= deltax-0.1 and config["COORD1"]["direction"] == "pull":
+                print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
+                logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
+                status_dict[int(K)]=1
+                bash_command("cd ../..")
+            elif abs(float(first_dist) - float(last_dist)) >= deltax-0.1 and config["COORD1"]["direction"] == "push":
                 print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
                 logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
                 status_dict[int(K)]=1
@@ -495,8 +505,9 @@ def init(iter: int):
         with open("last_command.json", "w") as f:
             json.dump(last_command, f, indent=4)
     # create staring K_array, where K_min is always 5 and K_max comes from config file
-    K_array = np.array([5, 0, 0, 0, 0])
-    K_array[4] = config['COORD1']["K_max"]
+    K_min = config['COORD1']["K_min"]
+    K_max = config['COORD1']["K_max"]
+    K_array = np.array([K_min, 0, 0, 0, K_max])
     K_array[2] = (K_array[0] + (K_array[4]-K_array[0])/2)
     # round K's to nearest multiple of 5
     K_array[2] = round(K_array[2]/5)*5
@@ -753,6 +764,21 @@ def conteq(iter: int):
 # If there are errors when running the simulations
 # and the user wants to revert to the previous K_array
 def revert():
+    # remove current Ks from used_Ks
+    f = open("used_Ks.json", "r")
+    used_Ks = json.load(f)
+    used_Ks = used_Ks['used_Ks']
+    f.close()
+    f = open("K_array.json", "r")
+    K_array = json.load(f)
+    K_array = K_array['K_array']
+    f.close()
+    for i in K_array:
+        if i in used_Ks:
+            used_Ks.remove(i)
+    used_Ks_dict = {"used_Ks": used_Ks}
+    with open("used_Ks.json", "w") as f:
+        json.dump(used_Ks_dict, f, indent=4)
     f = open("prev_Ks.json", "r")
     prev_Ks = json.load(f)
     K_array = np.array(prev_Ks['prev_Ks'])
