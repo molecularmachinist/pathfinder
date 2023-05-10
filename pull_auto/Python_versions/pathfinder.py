@@ -507,7 +507,7 @@ def init(iter: int):
     # create staring K_array, where K_min is always 5 and K_max comes from config file
     K_min = config['COORD1']["K_min"]
     K_max = config['COORD1']["K_max"]
-    K_array = np.array([K_min, 0, 0, 0, K_max])
+    K_array = np.array([int(K_min), 0, 0, 0, int(K_max)])
     K_array[2] = (K_array[0] + (K_array[4]-K_array[0])/2)
     # round K's to nearest multiple of 5
     K_array[2] = round(K_array[2]/5)*5
@@ -554,7 +554,7 @@ def run_simulation(iter: int, K_array: np.array):
             start_dict = json.load(f)
             start = start_dict['start']
             # add 0.5nm to the target distance to make sure the target is reached
-            start = float(start) + float(config['COORD1']['deltax'])*sign + 0.5*sign
+            start = float(start) + float(config['COORD1']['deltax'])*sign + 0.3*sign
             # run simulation for this K value
             run_pull(iter, K_array[j], domain_dict["name"])
     print("Running simulations for system " + domain_dict["name"] + " iteration " + str(iter) + " with K= " + str(K_array))
@@ -679,7 +679,7 @@ def contpull(iter: int):
                 print("You answered yes. Continuing to simulations...")
                 logging.info('User chose to continue to simulations.')
                 with open("K_array.json", "w") as f:
-                    json.dump(K_dict, f, indent=4)
+                    json.dump(K_filtered, f, indent=4)
                 with open("status_dict.json", "w") as f:
                     json.dump(status_dict, f, indent=4)
                 run_simulation(iter, K_filtered)
@@ -701,10 +701,16 @@ def contpull(iter: int):
         if answer == "y":
             print("You answered yes. Continuing to equilibration...")
             logging.info('User chose to continue to equilibration.')
-            f = open("start.json", "r")
-            start = json.load(f)
-            current_coord = float(start['start']) + float(config['COORD1']['deltax'])
-            start_dict = {"start": current_coord}
+            file_name = 'iteration' + str(iter) + '/K=' + str(best_K) + '/pull_' + str(domain_dict) + str(iter) + '_' + str(best_K) + 'x.xvg'
+            file_name = file_name.replace(" ", "")
+            if os.path.exists(file_name):
+                # get last distance
+                with open(file_name, 'r') as f:
+                    for i, line in enumerate(f):
+                        pass
+                    line = line.split()
+                    last_dist = line[1]
+            start_dict = {"start": last_dist}
             with open("start.json", "w") as f:
                 json.dump(start_dict, f, indent=4)
             # equilibrate the system
@@ -753,12 +759,16 @@ def conteq(iter: int):
         print("Equilibration was successful")
         logging.info("Equilibration was successful")
         # move the files from the equilibration simulation to the eq folder
-        bash_command("if compgen -G pull_eq_{}{}* > /dev/null; then\nmv pull_eq_{}{}* eq\nfi".format(dom,iter,dom,iter))
+        if not os.path.exists("iteration{}/eq".format(iter)):
+            bash_command("mkdir -p iteration{}/eq".format(iter))
+        bash_command("if compgen -G pull_eq_{}{}* > /dev/null; then\nmv pull_eq_{}{}* iteration{}/eq\nfi".format(dom,iter,dom,iter,iter))
+        time.sleep(1)
         gro_file = 'pull_eq_' + dom + str(iter) + '.gro'
         gro_dict = {"gro_file": gro_file}
         with open("gro_file.json", "w") as f:
             json.dump(gro_dict, f, indent=4)
-        bash_command("mv eq/{} .".format(gro_file))
+        # copy the gro file to the main folder
+        bash_command("cp iteration{}/eq/{} .".format(iter, gro_file))
 
 
 # If there are errors when running the simulations
@@ -773,9 +783,15 @@ def revert():
     K_array = json.load(f)
     K_array = K_array['K_array']
     f.close()
+    f = open("status_dict.json", "r")
+    status_dict = json.load(f)
+    status_dict = status_dict['status_dict']
+    f.close()
     for i in K_array:
         if i in used_Ks:
             used_Ks.remove(i)
+        if i in status_dict:
+            del status_dict[i]
     used_Ks_dict = {"used_Ks": used_Ks}
     with open("used_Ks.json", "w") as f:
         json.dump(used_Ks_dict, f, indent=4)
