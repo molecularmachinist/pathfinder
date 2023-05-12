@@ -260,7 +260,12 @@ def status(K: int, domain: string, iter: int):
                 for i, line in enumerate(f):
                     pass
                 line = line.split()
-                last_dist = line[1]
+                try:
+                    last_dist = line[1]
+                except IndexError:
+                    print("The last line in the distance xvg file is odd. Please check the xvg file. Did the simulation finish correctly?")
+                    logging.error("The last line in the distance xvg file is odd")
+                    sys.exit()
                 #print("Ending distance: ", last_dist)
             # delta-0.1 to give some leeway for pulling
             if abs(float(last_dist) - float(first_dist)) >= deltax-0.1 and config["COORD1"]["direction"] == "pull":
