@@ -156,10 +156,7 @@ def run_pull(iter: int, K: int, domain: str):
     output = 'pull_' + str(domain) + str(iter) + '_' + str(K) + '.out'
 
     lines = open(mdp, 'r').readlines()
-    if (config["COORD1"]["direction"] == "push"):
-        lines[-1] = "\npull_coord1_k = -" + str(K)
-    else:
-        lines[-1] = "\npull_coord1_k = " + str(K) 
+    lines[-1] = "\npull_coord1_k = " + str(K) 
     global start
     lines[-2] = "pull_coord1_init = " + str(start)
     open(mdp, 'w').writelines(lines)
@@ -216,13 +213,13 @@ def status(K: int, domain: string, iter: int):
                             line = line.split()
                             first_dist = line[1]
                             #print("Starting distance: ", first_dist)
-                # get last distance
                 with open(file_name, 'r') as f:
                     for i, line in enumerate(f):
                         pass
                     line = line.split()
                     last_dist = line[1]
                     #print("Ending distance: ", last_dist)
+                # delta-0.1 to give some leeway for pulling
                 if abs(float(last_dist) - float(first_dist)) >= deltax-0.1 and config["COORD1"]["direction"] == "pull":
                     print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
                     logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
@@ -265,6 +262,7 @@ def status(K: int, domain: string, iter: int):
                 line = line.split()
                 last_dist = line[1]
                 #print("Ending distance: ", last_dist)
+            # delta-0.1 to give some leeway for pulling
             if abs(float(last_dist) - float(first_dist)) >= deltax-0.1 and config["COORD1"]["direction"] == "pull":
                 print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
                 logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
@@ -382,8 +380,8 @@ def run_eq(domain: string, iter: int):
     f = open("start.json", "r")
     start = json.load(f)
     current_coord = start['start']
-    range_high = current_coord + eq_range
-    range_low = current_coord - eq_range
+    range_high = float(current_coord) + eq_range
+    range_low = float(current_coord) - eq_range
 
     #insert new lines with equilibration range into mdp file
     lines.append("pull_coord1_init = " + str(range_high) + "\n")
@@ -496,7 +494,7 @@ def init(iter: int):
         gro_dict = {"gro_file": gro}
         with open("gro_file.json", "w") as f:
             json.dump(gro_dict, f, indent=4)
-        # start has the starting coordinate for the next iteration, will increase with deltax with each iteration
+        # start has the starting coordinate for the next iteration, will increase/decrease with deltax with each iteration
         start_dict = {"start": config['COORD1']["start"]}
         with open("start.json", "w") as f:
             json.dump(start_dict, f, indent=4)
@@ -553,7 +551,7 @@ def run_simulation(iter: int, K_array: np.array):
             f = open("start.json", "r")
             start_dict = json.load(f)
             start = start_dict['start']
-            # add 0.5nm to the target distance to make sure the target is reached
+            # add 0.3nm to the target distance to make sure the target is reached
             start = float(start) + float(config['COORD1']['deltax'])*sign + 0.3*sign
             # run simulation for this K value
             run_pull(iter, K_array[j], domain_dict["name"])
@@ -608,6 +606,7 @@ def contpull(iter: int):
     #         K_filtered.append(i)
     # K_filtered = np.array(K_filtered)
     # print("K_filtered: ", K_filtered)
+    global K_filtered
     K_filtered = K_array_unique
     #print(run_multiple)
     for j in range(len(K_filtered)):
@@ -651,7 +650,7 @@ def contpull(iter: int):
         pullx = "pull_" + domain_dict + str(iter) + "_" + str(best_K) + "x.xvg"
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, pullf))
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, pullx))
-        pull_plot(pullx, pullf)
+        #pull_plot(pullx, pullf)
         #print("The best force constant has been found.")
         logging.info("The best force constant has been found.")
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, gro_file))
@@ -678,8 +677,10 @@ def contpull(iter: int):
             if answer == "y":
                 print("You answered yes. Continuing to simulations...")
                 logging.info('User chose to continue to simulations.')
+                global K_filtered
+                K_array = {"K_array": K_filtered.tolist()}
                 with open("K_array.json", "w") as f:
-                    json.dump(K_filtered, f, indent=4)
+                    json.dump(K_array, f, indent=4)
                 with open("status_dict.json", "w") as f:
                     json.dump(status_dict, f, indent=4)
                 run_simulation(iter, K_filtered)
@@ -771,7 +772,7 @@ def conteq(iter: int):
         bash_command("cp iteration{}/eq/{} .".format(iter, gro_file))
 
 
-# If there are errors when running the simulations
+# If there are errors when running the simulations (e.g. contpull)
 # and the user wants to revert to the previous K_array
 def revert():
     # remove current Ks from used_Ks
@@ -785,7 +786,7 @@ def revert():
     f.close()
     f = open("status_dict.json", "r")
     status_dict = json.load(f)
-    status_dict = status_dict['status_dict']
+    #status_dict = status_dict['status_dict']
     f.close()
     for i in K_array:
         if i in used_Ks:
