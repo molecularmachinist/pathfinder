@@ -87,18 +87,6 @@ def read_config():
         logging.error('The mdp file does not have the suffix .mdp')
         sys.exit()
 
-    # # check that the number of domains is greater than 0
-    # if len(config['DOMAINS']['domains']) < 1:
-    #     print('The number of domains must be greater than 0')
-    #     logging.error('The number of domains is less than 1')
-    #     sys.exit()
-
-    # # check that the number of domains matches the length of domains array
-    # if len(config['DOMAINS']['domains']) != config['DOMAINS']['num_of_domains']:
-    #     print('The number of domains must match the length of the domains array')
-    #     logging.error('The number of domains does not match the length of the domains array')
-    #     sys.exit()
-
     # check that the number of copies is greater than 0
     if config['COPIES']['run_multiple'] == True and config['COPIES']['num_of_copies'] < 1:
         print('The number of copies must be greater than 0')
@@ -158,6 +146,7 @@ def longer_time(mdp_file: string):
 # Runs individual simulations for each K
 # First runs grompp, and then sbatch
 def run_pull(iter: int, K: list):
+    # create file names
     ncoords = int(config['COORDINATES']['num_of_coords'])
     system = []
     for n in range(1, ncoords+1):
@@ -182,6 +171,7 @@ def run_pull(iter: int, K: list):
         for line in lines[:-x]:
             f.write(line)
     
+    # for each coordinate, add K and init to mdp file
     for n in range(1, ncoords+1):
         domain_dict = config['COORD{}'.format(n)]
         if domain_dict["direction"] == "pull":

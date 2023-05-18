@@ -204,6 +204,7 @@ def status(K: int, domain: string, iter: int):
             file_name = 'iteration' + str(iter) + '/K=' + str(K) + '/pull_' + str(domain) + str(iter) + '_' + str(K) + '_' + str(copy) + 'x.xvg'
             file_name = file_name.replace(" ", "")
             file_name = file_name.strip()
+
             # Check if the difference between the first and last distance in xvg file is greater than deltax nm (status=1)
             if os.path.exists(file_name):
                 # get first distance
@@ -212,7 +213,7 @@ def status(K: int, domain: string, iter: int):
                         if i == 17:
                             line = line.split()
                             first_dist = line[1]
-                            #print("Starting distance: ", first_dist)
+                # get last distance
                 with open(file_name, 'r') as f:
                     for i, line in enumerate(f):
                         pass
@@ -221,23 +222,27 @@ def status(K: int, domain: string, iter: int):
                         last_dist = line[1]
                     except IndexError:
                         print("The last line in the distance xvg file is odd. Please check the xvg file. Did the simulation finish correctly?")
-                        logging.error("The last line in the distance xvg file is odd")
+                        logging.error("The last line in the distance xvg file is not complete")
                         sys.exit()
-                    #print("Ending distance: ", last_dist)
-                # delta-0.1 to give some leeway for pulling
+
+                # check if the difference between the first and last distance is greater than deltax-0.1
+                # delta-0.1 to give some leeway for pulling, e.g. for deltax=1, 0.9nm is usually acceptable
                 if abs(float(last_dist) - float(first_dist)) >= deltax-0.1 and config["COORD1"]["direction"] == "pull":
                     print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
                     logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
+                    # set status of this K to 1
                     status_dict[int(K)]=1
                     bash_command("cd ../..")
                 elif abs(float(first_dist) - float(last_dist)) >= deltax-0.1 and config["COORD1"]["direction"] == "push":
                     print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
                     logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was successful.')
+                    # set status of this K to 1
                     status_dict[int(K)]=1
                     bash_command("cd ../..")
                 else:
                     print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was not successful.')
                     logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + '(copy: ' + str(copy) + ') was not successful.')
+                    # set status of this K to 0, unless it has already been set to 1
                     if int(K) in status_dict:
                         if status_dict[int(K)] != 1:
                             status_dict[int(K)]=0 
@@ -247,10 +252,12 @@ def status(K: int, domain: string, iter: int):
             else:
                 print('The xvg file does not exist')
                 logging.error('The xvg file does not exist')
+
     # Check status of a single copy
     else:
         file_name = 'iteration' + str(iter) + '/K=' + str(K) + '/pull_' + str(domain) + str(iter) + '_' + str(K) + 'x.xvg'
         file_name = file_name.replace(" ", "")
+
         # Check if the difference between the first and last distance in xvg file is greater than 0.9 nm (status=1)
         if os.path.exists(file_name):
             # get first distance
@@ -259,7 +266,6 @@ def status(K: int, domain: string, iter: int):
                     if i == 17:
                         line = line.split()
                         first_dist = line[1]
-                        #print("Starting distance: ", first_dist)
             # get last distance
             with open(file_name, 'r') as f:
                 for i, line in enumerate(f):
@@ -269,23 +275,27 @@ def status(K: int, domain: string, iter: int):
                     last_dist = line[1]
                 except IndexError:
                     print("The last line in the distance xvg file is odd. Please check the xvg file. Did the simulation finish correctly?")
-                    logging.error("The last line in the distance xvg file is odd")
+                    logging.error("The last line in the distance xvg file is not complete")
                     sys.exit()
-                #print("Ending distance: ", last_dist)
-            # delta-0.1 to give some leeway for pulling
+
+            # check if the difference between the first and last distance is greater than deltax-0.1
+            # delta-0.1 to give some leeway for pulling, e.g. for deltax=1, 0.9nm is usually acceptable
             if abs(float(last_dist) - float(first_dist)) >= deltax-0.1 and config["COORD1"]["direction"] == "pull":
                 print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
                 logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
+                # set status of this K to 1
                 status_dict[int(K)]=1
                 bash_command("cd ../..")
             elif abs(float(first_dist) - float(last_dist)) >= deltax-0.1 and config["COORD1"]["direction"] == "push":
                 print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
                 logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was successful.')
+                # set status of this K to 1
                 status_dict[int(K)]=1
                 bash_command("cd ../..")
             else:
                 print('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
                 logging.info('The pulling of the ' + str(domain) + ' domain with ' + str(K) + ' was not successful.')
+                # set status of this K to 0
                 status_dict[int(K)]=0
                 bash_command("cd ../..")
         else:
@@ -339,23 +349,25 @@ def new_K(status_array, K_array):
     logging.info('New K_array: ' + str(K_array))
     # if K_array contains duplicates
     if len(K_array) != len(set(K_array)):
-        print("K_array contains duplicates, but don't worry, we will only run the necessary simulations once.")
+        print("K_array contains duplicates, but don't worry, we will only run simulations for each K once.")
     return K_array
 
 
 
-# Check if the best K (or Ks) has been found
+# Check if the best K has been found
 def check_if_done():
-    # go through status_dict and sort
+    # go through status_dict and sort it by K (ascending)
     g = open("status_dict.json", "r")
     st_dict = json.load(g)
     status_dict = dict(st_dict)
     status_dict = {int(k):v for k,v in status_dict.items()}
     status_dict = {k: v for k, v in sorted(status_dict.items(), key=lambda item: item[0])}
+
     for key, value in status_dict.items():
-        # if 5 is the best K
-        if value == 1 and (key - 5) <= 0:
-            print('The best force constant has been found. The force constant is ' + str(key) + '.')
+        # if the smallest K is the best K
+        if value == 1 and list(status_dict).index(key) == 0:
+            print('The best force constant has been found. The force constant is ' + str(key) + '. This is the K_min. ')
+            print('It is possible there exists and even smaller force constant, but Pathfinder will not check for it, because this was K_min in the config file.')
             logging.info('The best force constant has been found. The force constant is ' + str(key) + '.')
             return 1,key
         elif value == 1:
@@ -371,6 +383,7 @@ def check_if_done():
 
 # Run equilibration simulations for a domain
 def run_eq(domain: string, iter: int):
+    # set up variables and file names
     f = open("gro_file.json", "r")
     gro_dict = json.load(f)
     gro_file = gro_dict['gro_file']
@@ -378,6 +391,7 @@ def run_eq(domain: string, iter: int):
     jobname = 'eq_' + str(domain)
     output = 'eq_' + str(domain) + '.out'
 
+    # make directory for equilibration
     bash_command("cd iteration{}".format(iter))
     bash_command("mkdir -p iteration{}/eq".format(iter))
     bash_command("cd ..")
@@ -499,6 +513,7 @@ def init(iter: int):
     read_config()
     # for first iteration
     # create json files to store variables for later use
+
     if iter == 0:
         # gro_file has the name of the current gro file, will change with each iteration
         gro_dict = {"gro_file": gro}
@@ -512,7 +527,8 @@ def init(iter: int):
         last_command = {"last_command": "init " + str(iter)}
         with open("last_command.json", "w") as f:
             json.dump(last_command, f, indent=4)
-    # create staring K_array, where K_min is always 5 and K_max comes from config file
+    
+    # create starting K_array, where K_min and K_max come from config file
     K_min = config['COORD1']["K_min"]
     K_max = config['COORD1']["K_max"]
     K_array = np.array([int(K_min), 0, 0, 0, int(K_max)])
@@ -526,6 +542,7 @@ def init(iter: int):
     K_array[3] = round(K_array[3]/5)*5
     K_array[3] = K_array[2] + K_array[3]
     print("K_array: ", K_array)
+
     K_dict = {"K_array": K_array.tolist()}
     status_dict = {}
     used_Ks = {"used_Ks": []}
@@ -538,6 +555,7 @@ def init(iter: int):
     # status_dict is a dictionary of the status of each K value, currently full of zeros
     with open("status_dict.json", "w") as f:
        json.dump(status_dict, f, indent=4)
+
     run_simulation(iter, K_array)
     
     
@@ -547,6 +565,7 @@ def init(iter: int):
 def run_simulation(iter: int, K_array: np.array):
     domain_dict = config['COORD1']
     global start
+
     # if directory for this iteration doesnt exist, create it
     if not os.path.exists("iteration{}".format(iter)):
         bash_command("mkdir -p iteration{}".format(iter))
@@ -565,8 +584,10 @@ def run_simulation(iter: int, K_array: np.array):
             start = float(start) + float(config['COORD1']['deltax'])*sign + 0.3*sign
             # run simulation for this K value
             run_pull(iter, K_array[j], domain_dict["name"])
+
     print("Running simulations for system " + domain_dict["name"] + " iteration " + str(iter) + " with K= " + str(K_array))
     logging.info("Running simulations for system " + domain_dict["name"] + " iteration " + str(iter))
+
     f = open("used_Ks.json", "r")
     used_dict = json.load(f)
     used_Ks = used_dict['used_Ks']
@@ -590,22 +611,27 @@ def run_simulation(iter: int, K_array: np.array):
 # Check which simulations were successful and continue from there
 # Either run new simulations with new Ks or continue to equilibration
 def contpull(iter: int):
+    # open json files and read variables
     domain_dict = config['COORD1']['name']
     dom = config['COORD1']['name']
     global status_dict
     last_command = {"last_command": "contpull " + str(iter)}
     with open("last_command.json", "w") as f:
         json.dump(last_command, f, indent=4)
+
     f = open("K_array.json", "r")
     K_dict = json.load(f)
     K_array = K_dict['K_array']
     K_array = np.array(K_array)
+
     g = open("status_dict.json", "r")
     st_dict = json.load(g)
     status_dict = dict(st_dict)
+
     h = open("used_Ks.json", "r")
     used_dict = json.load(h)
     used_Ks = used_dict['used_Ks']
+
     # convert used_Ks elements to int
     used_Ks = [int(i) for i in used_Ks]
     K_array_unique = np.unique(K_array)
@@ -618,7 +644,7 @@ def contpull(iter: int):
     # print("K_filtered: ", K_filtered)
     global K_filtered
     K_filtered = K_array_unique
-    #print(run_multiple)
+
     for j in range(len(K_filtered)):
         if run_multiple == True:
             for copy in range(1, num_of_copies + 1):
@@ -637,27 +663,24 @@ def contpull(iter: int):
         time.sleep(3)
         # check the status of the simulations
         status(K_filtered[j], domain_dict, iter)
-    #print(status_dict)
-    #print(status_dict['status_dict']) 
+
     status_dict = {int(k):v for k,v in status_dict.items()}
     status_dict = {k:status_dict[k] for k in sorted(status_dict)}
     print("status_dict: ", status_dict)
-    #status_dict={"status_dict": status_dict}
     with open("status_dict.json", "w") as f:
         json.dump(status_dict, f, indent=4)
 
     # Check if the best K has been found
     res, best_K = check_if_done()
     if res == 1:
-        #global route
-        #route += domain_dict + "/iteration_" + str(iter) + "/K_" + str(best_K)
         # make plots of the distance (x) and force (f) during the simulation
         pullf = "pull_" + domain_dict + str(iter) + "_" + str(best_K) + "f.xvg"
         pullx = "pull_" + domain_dict + str(iter) + "_" + str(best_K) + "x.xvg"
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, pullf))
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, pullx))
+        # there is some error with the plotting, so for now it is commented out
         #pull_plot(pullx, pullf)
-        #print("The best force constant has been found.")
+
         logging.info("The best force constant has been found.")
         gro_file = 'pull_' + domain_dict + str(iter) + '_' + str(best_K) + '.gro'
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, gro_file))
@@ -666,11 +689,10 @@ def contpull(iter: int):
         prev_Ks = {"prev_Ks": K_array.tolist()}
         with open("prev_Ks.json", "w") as f:
             json.dump(prev_Ks, f, indent=4)
+        
         # get new Ks
         K_array = new_K(status_dict, K_array)
         K_dict = {"K_array": K_array.tolist()}
-        #st_dict = {"status_dict": status_dict}
-        #print("Used Ks: {}".format(used_Ks))
         # remove duplicates from K_array
         K_array_unique = np.unique(K_array)
         K_filtered = []
@@ -679,6 +701,8 @@ def contpull(iter: int):
                 K_filtered.append(i)
         K_filtered = np.array(K_filtered)
         print("K_filtered: {}".format(K_filtered))
+
+        # function for asking if the user wants to continue to simulations with new Ks
         def ask_cont():
             answer = input("Do you wish to run simulations with these new force constants? (y/n)")
             if answer == "y":
@@ -709,8 +733,10 @@ def contpull(iter: int):
         if answer == "y":
             print("You answered yes. Continuing to equilibration...")
             logging.info('User chose to continue to equilibration.')
+
             file_name = 'iteration' + str(iter) + '/K=' + str(best_K) + '/pull_' + str(domain_dict) + str(iter) + '_' + str(best_K) + 'x.xvg'
             file_name = file_name.replace(" ", "")
+
             if os.path.exists(file_name):
                 # get last distance
                 with open(file_name, 'r') as f:
@@ -718,6 +744,7 @@ def contpull(iter: int):
                         pass
                     line = line.split()
                     last_dist = line[1]
+                
             start_dict = {"start": last_dist}
             with open("start.json", "w") as f:
                 json.dump(start_dict, f, indent=4)
@@ -725,8 +752,10 @@ def contpull(iter: int):
             gro_dict = {"gro_file": gro_file}
             with open("gro_file.json", "w") as f:
                 json.dump(gro_dict, f, indent=4)
+
             # equilibrate the system
             run_eq(domain_dict, iter)
+
         elif answer == "n":
             print("You answered no. Exiting...")
             logging.info('User chose not to continue. Exiting program.')
@@ -755,14 +784,17 @@ def conteq(iter: int):
     # analyze the slope of the RMSD with analyze function
     result=analyze(rmsd_xvg_file, dom)
     print("Result: ", result)
+
     if result == 0:
         answer = input("Equilibration was not successful. Do you want to run it again with longer time? (y/n)")
         if answer == "y":
             print("Running equilibration again with longer time")
             logging.info("Running equilibration again with longer time")
+
             # double the time of the equilibration
             longer_time(eq_mdp)
             run_eq(dom, iter)
+
         elif answer == "n":
             print("You answered no. Exiting...")
             logging.info('User chose not to continue. Exiting program.')
@@ -770,11 +802,13 @@ def conteq(iter: int):
     else:
         print("Equilibration was successful")
         logging.info("Equilibration was successful")
+
         # move the files from the equilibration simulation to the eq folder
         if not os.path.exists("iteration{}/eq".format(iter)):
             bash_command("mkdir -p iteration{}/eq".format(iter))
         bash_command("if compgen -G pull_eq_{}{}* > /dev/null; then\nmv pull_eq_{}{}* iteration{}/eq\nfi".format(dom,iter,dom,iter,iter))
         time.sleep(1)
+
         gro_file = 'pull_eq_' + dom + str(iter) + '.gro'
         gro_dict = {"gro_file": gro_file}
         with open("gro_file.json", "w") as f:
@@ -791,28 +825,36 @@ def revert():
     used_Ks = json.load(f)
     used_Ks = used_Ks['used_Ks']
     f.close()
+
     f = open("K_array.json", "r")
     K_array = json.load(f)
     K_array = K_array['K_array']
     f.close()
+
     f = open("status_dict.json", "r")
     status_dict = json.load(f)
-    #status_dict = status_dict['status_dict']
     f.close()
+
     for i in K_array:
         if i in used_Ks:
             used_Ks.remove(i)
         if i in status_dict:
             del status_dict[i]
+
     used_Ks_dict = {"used_Ks": used_Ks}
     with open("used_Ks.json", "w") as f:
         json.dump(used_Ks_dict, f, indent=4)
+
     f = open("prev_Ks.json", "r")
     prev_Ks = json.load(f)
     K_array = np.array(prev_Ks['prev_Ks'])
     K_dict = {"K_array": K_array.tolist()}
     with open("K_array.json", "w") as f:
         json.dump(K_dict, f, indent=4)
+
+    with open("status_dict.json", "w") as f:
+        json.dump(status_dict, f, indent=4)
+        
     print("K_array has been reverted to previous K_array. K_array: ", K_array)
     print("used_Ks has been reverted to previous used_Ks. used_Ks: ", used_Ks)
     print("status_dict has been reverted to previous status_dict. status_dict: ", status_dict)
