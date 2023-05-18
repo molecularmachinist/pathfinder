@@ -70,7 +70,12 @@ python pathfinder.py conteq 0
 ```
 After equilibration, the conteq command will check if the structure is equilibrated enough. The command takes one argument as input: the number of the iteration (starting from 0). If the equilibration time was too short and the structure is not equilibrated enough, it will double the running time and run the equilibration again. If the equilibration was successful, the program will tell you and exit, and now you are ready to continue into the next iteration if you wish. 
 
-
+## Known bugs and errors
+There are some known bugs and errors I haven't had the time to fix yet, but they are a work in progress.
+These include:
+* in ```init``` or ```contpull```, sometimes not all of the 5 (or however many) simulations with different Ks are submitted into Mahti. This can be noticed by checking ```squeue -u $USER``` in Mahti and seeing how many sims are running. This may be due to Mahti's slowness with grompp. The solution for now is just using ```revert``` to revert the K values and status dictionary back to the previous ones and running ```init``` or ```contpull``` again. 
+* ```pull_plot``` in ```contpull``` doesn't work currently
+* ```contpull``` sometimes gives the following error: "ValueError: the number of columns changed from 2 to 1 at row 478; use usecols to select a subset and avoid this error". This can be avoided by just running ```contpull``` again and the error usually goes away.
 
 
 

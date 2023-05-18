@@ -217,7 +217,12 @@ def status(K: int, domain: string, iter: int):
                     for i, line in enumerate(f):
                         pass
                     line = line.split()
-                    last_dist = line[1]
+                    try:
+                        last_dist = line[1]
+                    except IndexError:
+                        print("The last line in the distance xvg file is odd. Please check the xvg file. Did the simulation finish correctly?")
+                        logging.error("The last line in the distance xvg file is odd")
+                        sys.exit()
                     #print("Ending distance: ", last_dist)
                 # delta-0.1 to give some leeway for pulling
                 if abs(float(last_dist) - float(first_dist)) >= deltax-0.1 and config["COORD1"]["direction"] == "pull":
@@ -644,10 +649,6 @@ def contpull(iter: int):
     # Check if the best K has been found
     res, best_K = check_if_done()
     if res == 1:
-        gro_file = 'pull_' + domain_dict + str(iter) + '_' + str(best_K) + '.gro'
-        gro_dict = {"gro_file": gro_file}
-        with open("gro_file.json", "w") as f:
-            json.dump(gro_dict, f, indent=4)
         #global route
         #route += domain_dict + "/iteration_" + str(iter) + "/K_" + str(best_K)
         # make plots of the distance (x) and force (f) during the simulation
@@ -658,6 +659,7 @@ def contpull(iter: int):
         #pull_plot(pullx, pullf)
         #print("The best force constant has been found.")
         logging.info("The best force constant has been found.")
+        gro_file = 'pull_' + domain_dict + str(iter) + '_' + str(best_K) + '.gro'
         bash_command("cp iteration{}/K={}/{} .".format(iter, best_K, gro_file))
     else:
         print("The best force constant has not been found yet.")
@@ -719,6 +721,10 @@ def contpull(iter: int):
             start_dict = {"start": last_dist}
             with open("start.json", "w") as f:
                 json.dump(start_dict, f, indent=4)
+            gro_file = 'pull_' + domain_dict + str(iter) + '_' + str(best_K) + '.gro'
+            gro_dict = {"gro_file": gro_file}
+            with open("gro_file.json", "w") as f:
+                json.dump(gro_dict, f, indent=4)
             # equilibrate the system
             run_eq(domain_dict, iter)
         elif answer == "n":
@@ -807,7 +813,9 @@ def revert():
     K_dict = {"K_array": K_array.tolist()}
     with open("K_array.json", "w") as f:
         json.dump(K_dict, f, indent=4)
-    print("K_array has been reverted to previous K_array")
+    print("K_array has been reverted to previous K_array. K_array: ", K_array)
+    print("used_Ks has been reverted to previous used_Ks. used_Ks: ", used_Ks)
+    print("status_dict has been reverted to previous status_dict. status_dict: ", status_dict)
 
 
 if __name__ == '__main__':
