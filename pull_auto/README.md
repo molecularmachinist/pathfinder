@@ -76,7 +76,7 @@ These include:
 * in ```init``` or ```contpull```, sometimes not all of the 5 (or however many) simulations with different Ks are submitted into Mahti. This can be noticed by checking ```squeue -u $USER``` in Mahti and seeing how many sims are running. This may be due to Mahti's slowness with grompp. The solution for now is just using ```revert``` to revert the K values and status dictionary back to the previous ones and running ```init``` or ```contpull``` again. 
 * ```pull_plot``` in ```contpull``` doesn't work currently
 * ```contpull``` sometimes gives the following error: "ValueError: the number of columns changed from 2 to 1 at row 478; use usecols to select a subset and avoid this error". This can be avoided by just running ```contpull``` again and the error usually goes away.
-
+* if user runs ```contpull``` or ```conteq``` before the simulations have finished, at least the file writing will break, and the simulations might end abruptly
 
 
 

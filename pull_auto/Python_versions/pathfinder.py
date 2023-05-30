@@ -478,7 +478,7 @@ def pull_plot(pullx_file, pullf_file):
 
 
 # Analyze the rmsd plot slope and determine if the equilibration was successful
-def analyze(file, domain):
+def analyze(file, domain, iter):
     x,y = np.loadtxt(file,comments=["@","#"],unpack=True)
     n=math.ceil(0.8*len(x))
     x=x[-n:]
@@ -497,9 +497,9 @@ def analyze(file, domain):
     ax.set_ylim(0, 2)
     ax.set_xlabel("Time (ns)")
     ax.set_ylabel("RMSD (Å)")
-    ax.set_title("RMSD: Equilibration of {} domain".format(domain))
+    ax.set_title("RMSD: Equilibration of {} domain iteration {}".format(domain, iter))
     figure.tight_layout()
-    plt.savefig('rmsd.png')
+    plt.savefig('{}{}_rmsd.png'.format(domain, iter))
     plt.show()
     return res
 
@@ -542,6 +542,9 @@ def init(iter: int):
     K_array[3] = round(K_array[3]/5)*5
     K_array[3] = K_array[2] + K_array[3]
     print("K_array: ", K_array)
+    # if K_array contains duplicates
+    if len(K_array) != len(set(K_array)):
+        print("K_array contains duplicates, but don't worry, we will only run simulations for each K once.")
 
     K_dict = {"K_array": K_array.tolist()}
     status_dict = {}
@@ -580,8 +583,7 @@ def run_simulation(iter: int, K_array: np.array):
             f = open("start.json", "r")
             start_dict = json.load(f)
             start = start_dict['start']
-            # add 0.3nm to the target distance to make sure the target is reached
-            start = float(start) + float(config['COORD1']['deltax'])*sign + 0.3*sign
+            start = float(start) + float(config['COORD1']['deltax'])*sign + 0.1*sign
             # run simulation for this K value
             run_pull(iter, K_array[j], domain_dict["name"])
 
@@ -782,7 +784,7 @@ def conteq(iter: int):
 
     rmsd_xvg_file = file_name + '_rmsd.xvg'
     # analyze the slope of the RMSD with analyze function
-    result=analyze(rmsd_xvg_file, dom)
+    result=analyze(rmsd_xvg_file, dom, iter)
     print("Result: ", result)
 
     if result == 0:
@@ -815,6 +817,22 @@ def conteq(iter: int):
             json.dump(gro_dict, f, indent=4)
         # copy the gro file to the main folder
         bash_command("cp iteration{}/eq/{} .".format(iter, gro_file))
+
+        # use the last distance in the equilibration as the starting coordinate for the next iteration
+        file_name = 'iteration' + str(iter) + '/eq/pull_eq_' + dom + str(iter) + 'x.xvg'
+        file_name = file_name.replace(" ", "")
+
+        if os.path.exists(file_name):
+            # get last distance
+            with open(file_name, 'r') as f:
+                for i, line in enumerate(f):
+                    pass
+                line = line.split()
+                last_dist = line[1]
+            
+        start_dict = {"start": last_dist}
+        with open("start.json", "w") as f:
+            json.dump(start_dict, f, indent=4)
 
 
 # If there are errors when running the simulations (e.g. contpull)
